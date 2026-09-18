@@ -1,0 +1,111 @@
+====================================================================
+GUIA DE TASKS E 20 COMMITS - APP DE XADREZ MOCKADO (EXPO)
+====================================================================
+Regras do Trabalho:
+- Mínimo de 6 telas
+- Mínimo de 20 commits
+- Layout mockado com dados estáticos
+- Trabalho em dupla
+
+--------------------------------------------------------------------
+FASE 1: INICIALIZAÇÃO E ESTRUTURA BASE (Commits 1 a 4)
+--------------------------------------------------------------------
+
+[ ] COMMIT 01
+    Mensagem: chore: inicializacao do projeto expo em branco
+    Task: Rodar npx create-expo-app e limpar os códigos de exemplo da tela inicial (App.js ou app/index.tsx).
+
+[ ] COMMIT 02
+    Mensagem: chore: configuracao do gitignore e estrutura de pastas
+    Task: Ajustar o .gitignore e criar as pastas base: src/screens, src/components, src/constants e src/data.
+
+[ ] COMMIT 03
+    Mensagem: feat: instalacao de bibliotecas de navegacao e icones
+    Task: Instalar React Navigation (ou configurar Expo Router) e a biblioteca @expo/vector-icons.
+
+[ ] COMMIT 04
+    Mensagem: feat: esqueleto inicial de navegacao entre 6 telas
+    Task: Criar os arquivos vazios das 6 telas (Home, Game, Puzzle, History, Leaderboard, Profile) e configurar rotas com navegação funcional básica entre elas.
+
+--------------------------------------------------------------------
+FASE 2: CONSTANTES, TEMA E DADOS MOCKADOS (Commits 5 e 6)
+--------------------------------------------------------------------
+
+[ ] COMMIT 05
+    Mensagem: feat: definicao do tema visual e cores padrao
+    Task: Criar arquivo src/constants/theme.js com paleta estilo chess.com (verde clássico, cinza escuro, casas claras e escuras).
+
+[ ] COMMIT 06
+    Mensagem: feat: criacao dos dados estaticos mockados
+    Task: Criar arquivo src/data/mockData.js contendo listas estáticas para histórico de partidas, ranking e perfil do jogador.
+
+--------------------------------------------------------------------
+FASE 3: CONSTRUÇÃO DAS 6 TELAS (Commits 7 a 18)
+--------------------------------------------------------------------
+
+--- TELA 1: HOME (Início) ---
+[ ] COMMIT 07
+    Mensagem: feat: estrutura de cabecalho e boas-vindas na tela inicial
+    Task: Montar o header com foto de perfil rápida, nome do usuário logado e rating atual.
+
+[ ] COMMIT 08
+    Mensagem: style: botoes de modos de jogo na tela inicial
+    Task: Criar e estilizar os cards de atalho ("Jogar Online", "Jogar vs Bot", "Quebra-cabeças", "Com Amigos") com ícones temáticos.
+
+--- TELA 2: GAME (Partida / Tabuleiro) ---
+[ ] COMMIT 09
+    Mensagem: feat: construcao visual do tabuleiro de xadrez estatico
+    Task: Criar o grid 8x8 de casas alternando cores ou carregar asset de tabuleiro com as peças em posição inicial.
+
+[ ] COMMIT 10
+    Mensagem: feat: barras de jogadores e relogio na tela de partida
+    Task: Implementar as barras superior e inferior com nomes fictícios, relógios fixos (ex: 05:00), peças capturadas e botões "Desistir" e "Empate".
+
+--- TELA 3: PUZZLE (Quebra-cabeças) ---
+[ ] COMMIT 11
+    Mensagem: feat: layout do desafio e tabuleiro na tela de puzzles
+    Task: Criar cabeçalho com a instrução tática ("Brancas jogam e dão mate em 2") e um tabuleiro posicionado para o enigma.
+
+[ ] COMMIT 12
+    Mensagem: feat: controles e contador de pontos da tela de puzzles
+    Task: Adicionar botões "Dica", "Pular", status de streak de acertos e barra visual de dificuldade.
+
+--- TELA 4: HISTORY (Histórico de Jogos) ---
+[ ] COMMIT 13
+    Mensagem: feat: listagem das partidas anteriores no historico
+    Task: Criar FlatList alimentada pelo mockData exibindo os confrontos recentes.
+
+[ ] COMMIT 14
+    Mensagem: style: estilizacao dos cards de resultado no historico
+    Task: Adicionar badges de vitória/derrota com cores condicionais (verde/vermelho), variação de rating (+8 / -10) e modalidade (Blitz, Rápida).
+
+--- TELA 5: LEADERBOARD (Ranking) ---
+[ ] COMMIT 15
+    Mensagem: feat: abas e top 3 destacados na tela de ranking
+    Task: Implementar abas "Global" e "Amigos", além de podio/cards de destaque para os 3 primeiros colocados.
+
+[ ] COMMIT 16
+    Mensagem: feat: lista geral de jogadores classificados
+    Task: Montar a lista do 4º ao 10º colocado com avatares, bandeiras do país e pontuações de rating.
+
+--- TELA 6: PROFILE (Perfil) ---
+[ ] COMMIT 17
+    Mensagem: feat: informacoes de perfil e estatisticas de jogo
+    Task: Exibir foto do jogador, título (ex: GM), taxa de vitórias (%) e total de partidas jogadas.
+
+[ ] COMMIT 18
+    Mensagem: style: secao de configuracoes e preferencias no perfil
+    Task: Adicionar lista com opções fictícias de tema de tabuleiro, estilo de peças e preferências de conta.
+
+--------------------------------------------------------------------
+FASE 4: FINALIZAÇÃO E ENTREGA (Commits 19 e 20)
+--------------------------------------------------------------------
+
+[ ] COMMIT 19
+    Mensagem: fix: ajustes finos de navegacao, alinhamentos e padding
+    Task: Revisar a transição entre todas as 6 telas, testar botões de voltar e ajustar espaçamentos para dispositivos móveis.
+
+[ ] COMMIT 20
+    Mensagem: docs: criacao do readme com informacoes do projeto e dupla
+    Task: Criar README.md documentando os passos para rodar o app no Expo, imagens/resumo das 6 telas e os nomes da dupla.
+====================================================================
