@@ -4,6 +4,10 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 
+import { ActivityIndicator, View } from 'react-native';
+import { useFonts } from 'expo-font';
+import { Ionicons } from '@expo/vector-icons';
+
 import { RootStackParamList } from './src/types/navigation';
 import HomeScreen from './src/screens/HomeScreen';
 import GameScreen from './src/screens/GameScreen';
@@ -15,6 +19,17 @@ import ProfileScreen from './src/screens/ProfileScreen';
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
 export default function App() {
+  const [fontsLoaded] = useFonts({
+    ...Ionicons.font,
+  });
+
+  if (!fontsLoaded) {
+    return (
+      <View style={{ flex: 1, backgroundColor: '#302e2b', alignItems: 'center', justifyContent: 'center' }}>
+        <ActivityIndicator size="large" color="#81b64c" />
+      </View>
+    );
+  }
   return (
     <SafeAreaProvider>
       <NavigationContainer>
