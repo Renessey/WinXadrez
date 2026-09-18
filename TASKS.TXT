@@ -11,19 +11,19 @@ Regras do Trabalho:
 FASE 1: INICIALIZAÇÃO E ESTRUTURA BASE (Commits 1 a 4)
 --------------------------------------------------------------------
 
-[ ] COMMIT 01
+[x] COMMIT 01
     Mensagem: chore: inicializacao do projeto expo em branco
     Task: Rodar npx create-expo-app e limpar os códigos de exemplo da tela inicial (App.js ou app/index.tsx).
 
-[ ] COMMIT 02
+[x] COMMIT 02
     Mensagem: chore: configuracao do gitignore e estrutura de pastas
     Task: Ajustar o .gitignore e criar as pastas base: src/screens, src/components, src/constants e src/data.
 
-[ ] COMMIT 03
+[x] COMMIT 03
     Mensagem: feat: instalacao de bibliotecas de navegacao e icones
     Task: Instalar React Navigation (ou configurar Expo Router) e a biblioteca @expo/vector-icons.
 
-[ ] COMMIT 04
+[x] COMMIT 04
     Mensagem: feat: esqueleto inicial de navegacao entre 6 telas
     Task: Criar os arquivos vazios das 6 telas (Home, Game, Puzzle, History, Leaderboard, Profile) e configurar rotas com navegação funcional básica entre elas.
 
