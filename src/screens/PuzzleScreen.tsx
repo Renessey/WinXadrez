@@ -1,8 +1,15 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
+import {
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 import { RootStackParamList } from '../types/navigation';
+import { useAppTheme } from '../context/ThemeContext';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Puzzle'>;
 
@@ -14,85 +21,94 @@ const puzzleTypes = [
 ] as const;
 
 export default function PuzzleScreen({ navigation }: Props) {
+  const { colors } = useAppTheme();
   const [started, setStarted] = useState(false);
   const [selectedPuzzle, setSelectedPuzzle] = useState('mate');
-  const activePuzzle = puzzleTypes.find((puzzle) => puzzle.id === selectedPuzzle) ?? puzzleTypes[0];
+  const activePuzzle = puzzleTypes.find((p) => p.id === selectedPuzzle) ?? puzzleTypes[0];
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+    <ScrollView
+      style={[styles.container, { backgroundColor: colors.background }]}
+      contentContainerStyle={styles.content}
+    >
       <View style={styles.header}>
         <View>
-          <Text style={styles.eyebrow}>Centro de treinamento</Text>
-          <Text style={styles.title}>Tática do dia</Text>
-          <Text style={styles.description}>Leia a posição. Encontre a ideia.</Text>
+          <Text style={[styles.eyebrow, { color: colors.accent }]}>Centro de Treinamento</Text>
+          <Text style={[styles.title, { color: colors.text }]}>Tática Diária</Text>
+          <Text style={[styles.description, { color: colors.textSecondary }]}>
+            Encontre o melhor lance na posição.
+          </Text>
         </View>
-        <View style={styles.headerBadge}>
-          <Ionicons name="extension-puzzle" size={21} color="#f5b858" />
+        <View style={[styles.headerBadge, { backgroundColor: `${colors.accent}20` }]}>
+          <Ionicons name="extension-puzzle" size={22} color={colors.accent} />
         </View>
       </View>
 
-      <View style={styles.heroCard}>
-        <View style={styles.heroGlow} />
+      {/* Hero Puzzle Board */}
+      <View style={[styles.heroCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
         <View style={styles.heroTopLine}>
-          <View style={styles.difficultyBadge}>
-            <View style={styles.difficultyDot} />
-            <Text style={styles.difficultyText}>INTERMEDIÁRIO</Text>
+          <View style={[styles.difficultyBadge, { backgroundColor: `${activePuzzle.color}20` }]}>
+            <View style={[styles.difficultyDot, { backgroundColor: activePuzzle.color }]} />
+            <Text style={[styles.difficultyText, { color: activePuzzle.color }]}>
+              {activePuzzle.level.toUpperCase()}
+            </Text>
           </View>
-          <Text style={styles.streakText}>Série 8</Text>
+          <Text style={[styles.streakText, { color: colors.accent }]}>Série: 8 🔥</Text>
         </View>
 
-        <View style={styles.boardPreview}>
-          {['♜', '', '', '♟', '', '', '♚', '', '', '♙', '', '♘', '', '', '', '', '', '', '♗', '', '', '', '', '', '', '', '', '', '', '♕', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '♔'].map((piece, index) => (
-            <View key={index} style={[styles.boardSquare, (Math.floor(index / 8) + index % 8) % 2 === 1 ? styles.boardDark : styles.boardLight]}>
-              {piece ? <Text style={[styles.boardPiece, index < 32 ? styles.blackPiece : styles.whitePiece]}>{piece}</Text> : null}
-            </View>
-          ))}
+        <View style={[styles.boardPreview, { borderColor: colors.borderStrong }]}>
+          {['♜', '', '', '♟', '', '', '♚', '', '', '♙', '', '♘', '', '', '', '', '', '', '♗', '', '', '', '', '', '', '', '', '', '', '♕', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '♔'].map((piece, index) => {
+            const isDark = (Math.floor(index / 8) + (index % 8)) % 2 === 1;
+            return (
+              <View
+                key={index}
+                style={[
+                  styles.boardSquare,
+                  { backgroundColor: isDark ? colors.boardDark : colors.boardLight },
+                ]}
+              >
+                {piece ? (
+                  <Text
+                    style={[
+                      styles.boardPiece,
+                      index < 32 ? styles.blackPiece : styles.whitePiece,
+                    ]}
+                  >
+                    {piece}
+                  </Text>
+                ) : null}
+              </View>
+            );
+          })}
         </View>
 
         <View style={styles.heroCopy}>
-          <Text style={styles.heroKicker}>DESAFIO ATUAL</Text>
-          <Text style={styles.heroTitle}>Encontre o melhor lance</Text>
-          <Text style={styles.heroDescription}>Mate em 2 movimentos e explique a ideia principal da posição.</Text>
+          <Text style={[styles.heroKicker, { color: activePuzzle.color }]}>DESAFIO ATUAL</Text>
+          <Text style={[styles.heroTitle, { color: colors.text }]}>{activePuzzle.title}</Text>
+          <Text style={[styles.heroDescription, { color: colors.textSecondary }]}>
+            Brancas jogam e ganham vantagem decisiva em poucos lances.
+          </Text>
         </View>
       </View>
 
-      <View style={styles.statsRow}>
-        <View style={styles.statCard}>
-          <Text style={styles.statValue}>8</Text>
-          <Text style={styles.statLabel}>Séries</Text>
-        </View>
-        <View style={styles.statCard}>
-          <Text style={styles.statValue}>84%</Text>
-          <Text style={styles.statLabel}>Acerto</Text>
-        </View>
-        <View style={styles.statCard}>
-          <Text style={styles.statValue}>#18</Text>
-          <Text style={styles.statLabel}>Ranking</Text>
-        </View>
-      </View>
-
-      <View style={styles.actionCard}>
+      {/* Training Motivation Banner */}
+      <View style={[styles.actionCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
         <View style={styles.actionHeader}>
-          <View style={styles.actionIcon}>
-            <Ionicons name="bulb" size={18} color="#f5b858" />
+          <View style={[styles.actionIcon, { backgroundColor: `${colors.accent}20` }]}>
+            <Ionicons name="bulb" size={18} color={colors.accent} />
           </View>
           <View style={styles.actionHeaderText}>
-            <Text style={styles.sectionTitle}>Treine com intenção</Text>
-            <Text style={styles.taskText}>Cada acerto aumenta sua sequência.</Text>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>Puzzles Offline</Text>
+            <Text style={[styles.taskText, { color: colors.textSecondary }]}>
+              Resolva sem internet a qualquer momento.
+            </Text>
           </View>
-          <Text style={styles.progressLabel}>64%</Text>
-        </View>
-        <View style={styles.progressTrack}>
-          <View style={styles.progressFill} />
         </View>
       </View>
 
+      {/* Category selector */}
       <View style={styles.challengeHeader}>
-        <View>
-          <Text style={styles.challengeTitle}>Mais desafios</Text>
-          <Text style={styles.challengeSubtitle}>Escolha como quer treinar hoje</Text>
-        </View>
-        <Text style={styles.challengeCount}>4 opções</Text>
+        <Text style={[styles.challengeTitle, { color: colors.text }]}>Outros Puzzles</Text>
       </View>
 
       <View style={styles.challengeGrid}>
@@ -101,39 +117,60 @@ export default function PuzzleScreen({ navigation }: Props) {
           return (
             <TouchableOpacity
               key={puzzle.id}
-              style={[styles.challengeCard, isSelected && styles.challengeCardSelected]}
+              style={[
+                styles.challengeCard,
+                {
+                  backgroundColor: colors.surface,
+                  borderColor: isSelected ? puzzle.color : colors.border,
+                  borderWidth: isSelected ? 2 : 1,
+                },
+              ]}
               activeOpacity={0.8}
               onPress={() => {
                 setSelectedPuzzle(puzzle.id);
                 setStarted(false);
               }}
             >
-              <View style={[styles.challengeIcon, { backgroundColor: puzzle.color + '20' }]}>
-                <Ionicons name={puzzle.icon} size={19} color={puzzle.color} />
+              <View style={[styles.challengeIcon, { backgroundColor: `${puzzle.color}20` }]}>
+                <Ionicons name={puzzle.icon as any} size={20} color={puzzle.color} />
               </View>
-              <Text style={styles.challengeCardTitle}>{puzzle.title}</Text>
-              <Text style={styles.challengeCardSubtitle}>{puzzle.subtitle}</Text>
+              <Text style={[styles.challengeCardTitle, { color: colors.text }]}>{puzzle.title}</Text>
+              <Text style={[styles.challengeCardSubtitle, { color: colors.textSecondary }]}>
+                {puzzle.subtitle}
+              </Text>
               <View style={styles.challengeBottom}>
                 <Text style={[styles.challengeLevel, { color: puzzle.color }]}>{puzzle.level}</Text>
-                {isSelected ? <Ionicons name="checkmark-circle" size={17} color={puzzle.color} /> : <Ionicons name="chevron-forward" size={16} color="#77736f" />}
+                {isSelected ? (
+                  <Ionicons name="checkmark-circle" size={18} color={puzzle.color} />
+                ) : (
+                  <Ionicons name="chevron-forward" size={16} color={colors.textSecondary} />
+                )}
               </View>
             </TouchableOpacity>
           );
         })}
       </View>
 
-      <TouchableOpacity style={[styles.primaryButton, started && styles.primaryButtonActive]} activeOpacity={0.8} onPress={() => setStarted(true)}>
-        <Ionicons name={started ? 'checkmark-circle' : 'play'} size={19} color="#171614" />
-        <Text style={styles.primaryButtonText}>{started ? 'Desafio em andamento' : 'Iniciar quebra-cabeça'}</Text>
+      {/* Start puzzle button */}
+      <TouchableOpacity
+        style={[styles.primaryButton, { backgroundColor: started ? colors.primary : colors.accent }]}
+        activeOpacity={0.8}
+        onPress={() => setStarted(!started)}
+      >
+        <Ionicons name={started ? 'checkmark-circle' : 'play'} size={20} color="#171614" />
+        <Text style={styles.primaryButtonText}>
+          {started ? 'Resolvendo quebra-cabeça...' : 'Iniciar quebra-cabeça'}
+        </Text>
       </TouchableOpacity>
 
+      {/* Back button */}
       <TouchableOpacity
-        style={styles.backButton}
+        style={[styles.backButton, { backgroundColor: colors.surface, borderColor: colors.border }]}
         activeOpacity={0.7}
         onPress={() => navigation.goBack()}
       >
-        <Ionicons name="arrow-back" size={18} color="#ffffff" />
-        <Text style={styles.backButtonText}>Voltar</Text>
+        <Ionicons name="arrow-back" size={18} color={colors.text} />
+        <Text style={[styles.backButtonText, { color: colors.text }]}>Voltar ao Menu</Text>
       </TouchableOpacity>
     </ScrollView>
   );
@@ -142,110 +179,81 @@ export default function PuzzleScreen({ navigation }: Props) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#171614',
   },
   content: {
     padding: 18,
-    paddingBottom: 30,
+    paddingBottom: 32,
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 18,
+    marginBottom: 16,
   },
   eyebrow: {
-    color: '#f5b858',
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: '800',
-    letterSpacing: 1.6,
     textTransform: 'uppercase',
-    marginBottom: 5,
+    letterSpacing: 1,
+    marginBottom: 4,
+  },
+  title: {
+    fontSize: 24,
+    fontWeight: '900',
+    marginBottom: 2,
+  },
+  description: {
+    fontSize: 13,
   },
   headerBadge: {
-    width: 46,
-    height: 46,
-    borderRadius: 16,
+    width: 44,
+    height: 44,
+    borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#2a2115',
-    borderWidth: 1,
-    borderColor: 'rgba(245,184,88,0.28)',
   },
   heroCard: {
-    backgroundColor: '#211d18',
-    borderRadius: 24,
+    borderRadius: 22,
     borderWidth: 1,
-    borderColor: 'rgba(245,184,88,0.24)',
     padding: 16,
-    marginBottom: 14,
-    overflow: 'hidden',
-    shadowColor: '#f5b858',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.13,
-    shadowRadius: 14,
-    elevation: 4,
-  },
-  heroGlow: {
-    position: 'absolute',
-    top: -65,
-    right: -48,
-    width: 170,
-    height: 170,
-    borderRadius: 85,
-    backgroundColor: 'rgba(245,184,88,0.08)',
+    marginBottom: 16,
   },
   heroTopLine: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    marginBottom: 12,
   },
   difficultyBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    backgroundColor: 'rgba(245,184,88,0.13)',
-    borderRadius: 999,
-    paddingHorizontal: 9,
-    paddingVertical: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
   },
   difficultyDot: {
     width: 6,
     height: 6,
     borderRadius: 3,
-    backgroundColor: '#f5b858',
   },
   difficultyText: {
-    color: '#f5b858',
-    fontSize: 9,
-    fontWeight: '900',
-    letterSpacing: 0.8,
-  },
-  streakText: {
-    color: '#b9aa91',
     fontSize: 11,
     fontWeight: '800',
   },
-  title: {
-    fontSize: 29,
-    fontWeight: '900',
-    color: '#ffffff',
-  },
-  description: {
+  streakText: {
     fontSize: 13,
-    color: '#9f978c',
-    marginTop: 5,
+    fontWeight: '800',
   },
   boardPreview: {
-    width: '100%',
-    aspectRatio: 1,
     flexDirection: 'row',
     flexWrap: 'wrap',
-    marginTop: 16,
-    borderRadius: 14,
+    width: '100%',
+    aspectRatio: 1,
+    borderRadius: 12,
+    borderWidth: 2,
     overflow: 'hidden',
-    borderWidth: 4,
-    borderColor: '#30291e',
+    marginBottom: 14,
   },
   boardSquare: {
     width: '12.5%',
@@ -253,177 +261,105 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  boardLight: { backgroundColor: '#ead8b8' },
-  boardDark: { backgroundColor: '#9a7655' },
   boardPiece: {
-    fontSize: 25,
-    lineHeight: 27,
-    textAlign: 'center',
+    fontSize: 22,
+    fontWeight: '900',
   },
-  blackPiece: { color: '#231d18' },
-  whitePiece: { color: '#fff7e8' },
+  blackPiece: {
+    color: '#1a1816',
+  },
+  whitePiece: {
+    color: '#ffffff',
+    textShadowColor: 'rgba(0,0,0,0.4)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
+  },
   heroCopy: {
-    marginTop: 15,
+    paddingHorizontal: 4,
   },
   heroKicker: {
-    color: '#f5b858',
-    fontSize: 10,
-    fontWeight: '900',
-    letterSpacing: 1.4,
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 1,
+    marginBottom: 4,
   },
   heroTitle: {
-    color: '#ffffff',
-    fontSize: 21,
+    fontSize: 20,
     fontWeight: '900',
-    marginTop: 4,
+    marginBottom: 4,
   },
   heroDescription: {
-    color: '#bdb3a7',
     fontSize: 13,
-    lineHeight: 19,
-    marginTop: 5,
-  },
-  statsRow: {
-    flexDirection: 'row',
-    gap: 10,
-    marginBottom: 16,
-  },
-  statCard: {
-    flex: 1,
-    backgroundColor: '#1d1b1a',
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
-    paddingVertical: 14,
-    alignItems: 'center',
-  },
-  statValue: {
-    color: '#ffffff',
-    fontWeight: '800',
-    fontSize: 18,
-  },
-  statLabel: {
-    color: '#a8a5a2',
-    fontSize: 11,
-    marginTop: 4,
+    lineHeight: 18,
   },
   actionCard: {
-    backgroundColor: '#1d1b1a',
     borderRadius: 18,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
-    padding: 16,
-    marginBottom: 18,
+    padding: 14,
+    marginBottom: 16,
   },
   actionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 12,
   },
   actionIcon: {
     width: 38,
     height: 38,
-    borderRadius: 13,
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(245,184,88,0.14)',
-    marginRight: 11,
   },
-  actionHeaderText: { flex: 1 },
-  progressLabel: {
-    color: '#f5b858',
-    fontSize: 12,
-    fontWeight: '900',
-  },
-  progressTrack: {
-    height: 6,
-    borderRadius: 99,
-    backgroundColor: 'rgba(255,255,255,0.08)',
-    overflow: 'hidden',
-    marginTop: 14,
-  },
-  progressFill: {
-    width: '64%',
-    height: '100%',
-    borderRadius: 99,
-    backgroundColor: '#f5b858',
+  actionHeaderText: {
+    flex: 1,
   },
   sectionTitle: {
-    color: '#ffffff',
+    fontSize: 14,
     fontWeight: '800',
-    fontSize: 17,
-    marginBottom: 8,
+    marginBottom: 2,
   },
   taskText: {
-    color: '#d7d3cf',
     fontSize: 12,
-    marginTop: 3,
   },
   challengeHeader: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    justifyContent: 'space-between',
     marginBottom: 12,
   },
   challengeTitle: {
-    color: '#ffffff',
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: '800',
-  },
-  challengeSubtitle: {
-    color: '#8d8985',
-    fontSize: 11,
-    marginTop: 3,
-  },
-  challengeCount: {
-    color: '#a8a5a2',
-    fontSize: 11,
-    fontWeight: '700',
   },
   challengeGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
     gap: 10,
-    marginBottom: 18,
+    marginBottom: 20,
   },
   challengeCard: {
-    width: '48.5%',
-    minHeight: 142,
-    backgroundColor: '#1d1b1a',
-    borderRadius: 17,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
-    padding: 13,
-  },
-  challengeCardSelected: {
-    backgroundColor: '#292219',
-    borderColor: 'rgba(245,184,88,0.45)',
+    borderRadius: 16,
+    padding: 14,
   },
   challengeIcon: {
-    width: 34,
-    height: 34,
-    borderRadius: 11,
+    width: 36,
+    height: 36,
+    borderRadius: 10,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 11,
+    marginBottom: 8,
   },
   challengeCardTitle: {
-    color: '#ffffff',
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: '800',
+    marginBottom: 2,
   },
   challengeCardSubtitle: {
-    color: '#96918c',
-    fontSize: 10,
-    marginTop: 4,
+    fontSize: 12,
+    marginBottom: 10,
   },
   challengeBottom: {
     flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'space-between',
-    marginTop: 12,
+    alignItems: 'center',
   },
   challengeLevel: {
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: '800',
   },
   primaryButton: {
@@ -431,36 +367,25 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    backgroundColor: '#f5b858',
-    borderRadius: 15,
     paddingVertical: 14,
-    marginBottom: 14,
-    shadowColor: '#f5b858',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.2,
-    shadowRadius: 10,
-    elevation: 4,
-  },
-  primaryButtonActive: {
-    backgroundColor: '#b9f27c',
+    borderRadius: 16,
+    marginBottom: 12,
   },
   primaryButtonText: {
     color: '#171614',
-    fontWeight: '800',
     fontSize: 15,
+    fontWeight: '800',
   },
   backButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    backgroundColor: '#353331',
-    paddingVertical: 13,
-    paddingHorizontal: 18,
-    borderRadius: 12,
+    paddingVertical: 14,
+    borderRadius: 16,
+    borderWidth: 1,
   },
   backButtonText: {
-    color: '#ffffff',
     fontSize: 15,
     fontWeight: '700',
   },

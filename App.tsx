@@ -1,21 +1,22 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useMemo, useRef } from 'react';
 import { StatusBar } from 'expo-status-bar';
+import { NavigationBar } from 'expo-navigation-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { DefaultTheme, NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 
-import { ActivityIndicator, Animated, Easing, View, StyleSheet } from 'react-native';
+import { ActivityIndicator, Animated, Easing, Platform, View, StyleSheet } from 'react-native';
 import { useFonts } from 'expo-font';
 import { Ionicons } from '@expo/vector-icons';
 
 import { RootStackParamList } from './src/types/navigation';
+import { ThemeProvider, useAppTheme } from './src/context/ThemeContext';
 import HomeScreen from './src/screens/HomeScreen';
 import GameScreen from './src/screens/GameScreen';
 import PuzzleScreen from './src/screens/PuzzleScreen';
 import HistoryScreen from './src/screens/HistoryScreen';
 import LeaderboardScreen from './src/screens/LeaderboardScreen';
 import ProfileScreen from './src/screens/ProfileScreen';
-import AuthScreen from './src/screens/AuthScreen';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -45,22 +46,8 @@ const starData: Array<{
   { left: '72%', top: '82%', size: 3, opacity: 0.8, driftX: 24, driftY: 18 },
 ];
 
-const appTheme = {
-  ...DefaultTheme,
-  colors: {
-    ...DefaultTheme.colors,
-    background: '#171614',
-    card: '#1d1b1a',
-    text: '#ffffff',
-    border: '#2c2927',
-    primary: '#81b64c',
-  },
-};
-
-export default function App() {
-  const [fontsLoaded] = useFonts({
-    ...Ionicons.font,
-  });
+function MainContent() {
+  const { colors, mode } = useAppTheme();
   const drift = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -82,24 +69,37 @@ export default function App() {
     ).start();
   }, [drift]);
 
-  if (!fontsLoaded) {
-    return (
-      <View style={{ flex: 1, backgroundColor: '#171614', alignItems: 'center', justifyContent: 'center' }}>
-        <ActivityIndicator size="large" color="#81b64c" />
-      </View>
-    );
-  }
+  useEffect(() => {
+    if (Platform.OS === 'android') {
+      NavigationBar.setHidden(true);
+    }
+  }, []);
+
+  const navTheme = useMemo(
+    () => ({
+      ...DefaultTheme,
+      colors: {
+        ...DefaultTheme.colors,
+        background: colors.background,
+        card: colors.card,
+        text: colors.text,
+        border: colors.border,
+        primary: colors.primary,
+      },
+    }),
+    [colors]
+  );
 
   return (
     <SafeAreaProvider>
-      <View style={styles.appShell}>
+      <View style={[styles.appShell, { backgroundColor: colors.background }]}>
         <Animated.View pointerEvents="none" style={styles.backgroundLayer}>
           <Animated.View
             style={[
               styles.orb,
               styles.orbPrimary,
               {
-                opacity: 0.18,
+                opacity: mode === 'dark' ? 0.18 : 0.08,
                 transform: [
                   { translateX: drift.interpolate({ inputRange: [0, 1], outputRange: [0, 16] }) },
                   { translateY: drift.interpolate({ inputRange: [0, 1], outputRange: [0, -12] }) },
@@ -118,9 +118,9 @@ export default function App() {
                 width: star.size,
                 height: star.size,
                 borderRadius: star.size / 2,
-                opacity: star.opacity * 0.45,
-                backgroundColor: '#ffffff',
-                shadowColor: '#ffffff',
+                opacity: mode === 'dark' ? star.opacity * 0.45 : star.opacity * 0.12,
+                backgroundColor: mode === 'dark' ? '#ffffff' : '#000000',
+                shadowColor: mode === 'dark' ? '#ffffff' : '#000000',
                 shadowOpacity: 0.35,
                 shadowRadius: 4,
                 shadowOffset: { width: 0, height: 0 },
@@ -144,58 +144,74 @@ export default function App() {
         </Animated.View>
 
         <View style={styles.navigatorWrap}>
-          <NavigationContainer theme={appTheme}>
-          <StatusBar style="light" />
-          <Stack.Navigator
-            initialRouteName="Auth"
-            screenOptions={{
-              headerShown: false,
-              contentStyle: {
-                backgroundColor: 'transparent',
-              },
-              animation: 'slide_from_right',
-            }}
-          >
-            <Stack.Screen
-              name="Auth"
-              component={AuthScreen}
-              options={{ title: 'Acesso' }}
-            />
-            <Stack.Screen
-              name="Home"
-              component={HomeScreen}
-              options={{ title: 'WinXadrez' }}
-            />
-            <Stack.Screen
-              name="Game"
-              component={GameScreen}
-              options={{ title: 'Partida' }}
-            />
-            <Stack.Screen
-              name="Puzzle"
-              component={PuzzleScreen}
-              options={{ title: 'Quebra-cabeças' }}
-            />
-            <Stack.Screen
-              name="History"
-              component={HistoryScreen}
-              options={{ title: 'Histórico' }}
-            />
-            <Stack.Screen
-              name="Leaderboard"
-              component={LeaderboardScreen}
-              options={{ title: 'Ranking' }}
-            />
-            <Stack.Screen
-              name="Profile"
-              component={ProfileScreen}
-              options={{ title: 'Perfil' }}
-            />
-          </Stack.Navigator>
+          <NavigationContainer theme={navTheme}>
+            <StatusBar hidden={true} />
+            <NavigationBar hidden={true} />
+            <Stack.Navigator
+              initialRouteName="Home"
+              screenOptions={{
+                headerShown: false,
+                contentStyle: {
+                  backgroundColor: 'transparent',
+                },
+                animation: 'slide_from_right',
+              }}
+            >
+              <Stack.Screen
+                name="Home"
+                component={HomeScreen}
+                options={{ title: 'WinXadrez' }}
+              />
+              <Stack.Screen
+                name="Game"
+                component={GameScreen}
+                options={{ title: 'Partida' }}
+              />
+              <Stack.Screen
+                name="Puzzle"
+                component={PuzzleScreen}
+                options={{ title: 'Quebra-cabeças' }}
+              />
+              <Stack.Screen
+                name="History"
+                component={HistoryScreen}
+                options={{ title: 'Histórico' }}
+              />
+              <Stack.Screen
+                name="Leaderboard"
+                component={LeaderboardScreen}
+                options={{ title: 'Ranking' }}
+              />
+              <Stack.Screen
+                name="Profile"
+                component={ProfileScreen}
+                options={{ title: 'Perfil' }}
+              />
+            </Stack.Navigator>
           </NavigationContainer>
         </View>
       </View>
     </SafeAreaProvider>
+  );
+}
+
+export default function App() {
+  const [fontsLoaded] = useFonts({
+    ...Ionicons.font,
+  });
+
+  if (!fontsLoaded) {
+    return (
+      <View style={{ flex: 1, backgroundColor: '#171614', alignItems: 'center', justifyContent: 'center' }}>
+        <ActivityIndicator size="large" color="#81b64c" />
+      </View>
+    );
+  }
+
+  return (
+    <ThemeProvider>
+      <MainContent />
+    </ThemeProvider>
   );
 }
 

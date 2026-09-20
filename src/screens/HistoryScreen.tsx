@@ -1,115 +1,191 @@
-import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import {
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 import { RootStackParamList } from '../types/navigation';
+import { getMatches, getProfile, MatchRecord, UserProfile } from '../database/db';
+import { useAppTheme } from '../context/ThemeContext';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'History'>;
 
-const matches = [
-  { opponent: 'Júlia', result: 'Vitória', rating: '+34', accent: '#81b64c', mode: 'Blitz' },
-  { opponent: 'Pedro', result: 'Derrota', rating: '-18', accent: '#ff6b6b', mode: 'Rápida' },
-  { opponent: 'Ana', result: 'Vitória', rating: '+12', accent: '#81b64c', mode: 'Clássica' },
-  { opponent: 'Mateus', result: 'Empate', rating: '+4', accent: '#f7d36d', mode: 'Clássica' },
-];
-
 export default function HistoryScreen({ navigation }: Props) {
+  const { colors } = useAppTheme();
+  const [matches, setMatches] = useState<MatchRecord[]>([]);
+  const [profile, setProfile] = useState<UserProfile | null>(null);
+
+  const loadData = () => {
+    setMatches(getMatches());
+    setProfile(getProfile());
+  };
+
+  useEffect(() => {
+    loadData();
+    const unsubscribe = navigation.addListener('focus', () => {
+      loadData();
+    });
+    return unsubscribe;
+  }, [navigation]);
+
+  const matchesCount = profile?.matches_count ?? 0;
+  const winsCount = profile?.wins_count ?? 0;
+  const winPercent = matchesCount > 0 ? Math.round((winsCount / matchesCount) * 100) : 0;
+  const rating = profile?.rating ?? 1200;
+
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+    <ScrollView
+      style={[styles.container, { backgroundColor: colors.background }]}
+      contentContainerStyle={styles.content}
+    >
       <View style={styles.header}>
         <View>
-          <Text style={styles.eyebrow}>Performance</Text>
-          <Text style={styles.title}>Seu histórico</Text>
-          <Text style={styles.subtitle}>Uma leitura rápida da sua evolução.</Text>
+          <Text style={[styles.eyebrow, { color: colors.primary }]}>Desempenho</Text>
+          <Text style={[styles.title, { color: colors.text }]}>Histórico de Jogos</Text>
+          <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
+            Partidas registradas.
+          </Text>
         </View>
-        <View style={styles.headerIcon}>
-          <Ionicons name="analytics" size={21} color="#b9f27c" />
+        <View style={[styles.headerIcon, { backgroundColor: `${colors.primary}22` }]}>
+          <Ionicons name="analytics" size={22} color={colors.primary} />
         </View>
       </View>
 
-      <View style={styles.overviewCard}>
+      {/* Overview Card */}
+      <View style={[styles.overviewCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
         <View style={styles.overviewTop}>
           <View>
-            <Text style={styles.overviewLabel}>Ritmo atual</Text>
-            <Text style={styles.overviewValue}>+126 <Text style={styles.overviewUnit}>Elo</Text></Text>
+            <Text style={[styles.overviewLabel, { color: colors.textSecondary }]}>Rating Atual</Text>
+            <Text style={[styles.overviewValue, { color: colors.text }]}>
+              {rating} <Text style={[styles.overviewUnit, { color: colors.accent }]}>Elo</Text>
+            </Text>
           </View>
-          <View style={styles.trendBadge}>
-            <Ionicons name="trending-up" size={14} color="#b9f27c" />
-            <Text style={styles.trendText}>+12.4%</Text>
+          <View style={[styles.trendBadge, { backgroundColor: `${colors.primary}18` }]}>
+            <Ionicons name="medal-outline" size={14} color={colors.primary} />
+            <Text style={[styles.trendText, { color: colors.primary }]}>{winPercent}% vitórias</Text>
           </View>
         </View>
-        <View style={styles.progressTrack}>
-          <View style={styles.progressFill} />
+
+        <View style={[styles.progressTrack, { backgroundColor: colors.chipBg }]}>
+          <View style={[styles.progressFill, { backgroundColor: colors.primary, width: `${Math.min(winPercent, 100)}%` }]} />
         </View>
+
         <View style={styles.overviewFooter}>
-          <Text style={styles.overviewHint}>Consistência nas últimas partidas</Text>
-          <Text style={styles.overviewPercent}>68%</Text>
+          <Text style={[styles.overviewHint, { color: colors.textSecondary }]}>
+            {matchesCount === 0 ? 'Nenhuma partida jogada ainda' : `${winsCount} vitória(s) em ${matchesCount} confronto(s)`}
+          </Text>
+          <Text style={[styles.overviewPercent, { color: colors.primary }]}>{winPercent}%</Text>
         </View>
       </View>
 
+      {/* Summary Counters */}
       <View style={styles.summaryRow}>
-        <View style={[styles.summaryCard, styles.summaryCardHighlight]}>
-          <View style={[styles.summaryIcon, { backgroundColor: 'rgba(129,182,76,0.14)' }]}>
-            <Ionicons name="game-controller" size={15} color="#b9f27c" />
+        <View style={[styles.summaryCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          <View style={[styles.summaryIcon, { backgroundColor: `${colors.primary}20` }]}>
+            <Ionicons name="game-controller" size={16} color={colors.primary} />
           </View>
-          <Text style={styles.summaryValue}>12</Text>
-          <Text style={styles.summaryLabel}>Partidas</Text>
+          <Text style={[styles.summaryValue, { color: colors.text }]}>{matchesCount}</Text>
+          <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>Partidas</Text>
         </View>
-        <View style={styles.summaryCard}>
-          <View style={[styles.summaryIcon, { backgroundColor: 'rgba(247,211,109,0.14)' }]}>
-            <Ionicons name="pie-chart" size={15} color="#f7d36d" />
+
+        <View style={[styles.summaryCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          <View style={[styles.summaryIcon, { backgroundColor: `${colors.accent}20` }]}>
+            <Ionicons name="pie-chart" size={16} color={colors.accent} />
           </View>
-          <Text style={styles.summaryValue}>68%</Text>
-          <Text style={styles.summaryLabel}>Vitórias</Text>
+          <Text style={[styles.summaryValue, { color: colors.text }]}>{winsCount}</Text>
+          <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>Vitórias</Text>
         </View>
-        <View style={styles.summaryCard}>
-          <View style={[styles.summaryIcon, { backgroundColor: 'rgba(95,168,255,0.14)' }]}>
-            <Ionicons name="trending-up" size={15} color="#5fa8ff" />
+
+        <View style={[styles.summaryCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          <View style={[styles.summaryIcon, { backgroundColor: `${colors.danger}20` }]}>
+            <Ionicons name="close" size={16} color={colors.danger} />
           </View>
-          <Text style={styles.summaryValue}>+126</Text>
-          <Text style={styles.summaryLabel}>Elo</Text>
+          <Text style={[styles.summaryValue, { color: colors.text }]}>{profile?.losses_count ?? 0}</Text>
+          <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>Derrotas</Text>
         </View>
       </View>
 
-      <View style={styles.panel}>
-        <View style={styles.sectionHeader}>
-          <View>
-            <Text style={styles.sectionTitle}>Últimos confrontos</Text>
-            <Text style={styles.sectionSubtitle}>Suas partidas mais recentes</Text>
-          </View>
-          <View style={styles.liveDot} />
+      {/* Match List Section */}
+      <Text style={[styles.sectionTitle, { color: colors.text }]}>Partidas Recentes</Text>
+
+      {matches.length === 0 ? (
+        <View style={[styles.emptyCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          <Ionicons name="file-tray-outline" size={38} color={colors.textSecondary} />
+          <Text style={[styles.emptyTitle, { color: colors.text }]}>Nenhuma partida registrada</Text>
+          <Text style={[styles.emptySub, { color: colors.textSecondary }]}>
+            Ao jogar contra o Bot no tabuleiro, todos os seus resultados e variações de Elo aparecerão aqui!
+          </Text>
+          <TouchableOpacity
+            style={[styles.emptyButton, { backgroundColor: colors.primary }]}
+            activeOpacity={0.8}
+            onPress={() => navigation.navigate('Game')}
+          >
+            <Ionicons name="play" size={16} color="#ffffff" />
+            <Text style={styles.emptyButtonText}>Jogar Partida</Text>
+          </TouchableOpacity>
         </View>
+      ) : (
+        <View style={styles.list}>
+          {matches.map((item) => {
+            const isWin = item.result === 'Vitória';
+            const isLoss = item.result === 'Derrota';
+            const badgeColor = isWin ? colors.primary : isLoss ? colors.danger : colors.accent;
+            const badgeBg = `${badgeColor}18`;
 
-        {matches.map((match) => (
-          <View key={match.opponent} style={styles.matchRow}>
-            <View style={[styles.matchAvatar, { backgroundColor: match.accent + '22' }]}>
-              <Text style={[styles.matchAvatarText, { color: match.accent }]}>{match.opponent.charAt(0)}</Text>
-            </View>
-            <View style={styles.matchInfo}>
-              <Text style={styles.matchOpponent}>{match.opponent}</Text>
-              <View style={styles.modeLine}>
-                <Ionicons name="time-outline" size={12} color="#8d8985" />
-                <Text style={styles.matchMode}>{match.mode}</Text>
+            return (
+              <View
+                key={item.id}
+                style={[styles.matchCard, { backgroundColor: colors.surface, borderColor: colors.border }]}
+              >
+                <View style={styles.matchLeft}>
+                  <View style={[styles.resultIconWrap, { backgroundColor: badgeBg }]}>
+                    <Ionicons
+                      name={isWin ? 'trophy' : isLoss ? 'close' : 'remove'}
+                      size={20}
+                      color={badgeColor}
+                    />
+                  </View>
+                  <View>
+                    <Text style={[styles.matchOpponent, { color: colors.text }]}>
+                      {item.opponent}
+                    </Text>
+                    <Text style={[styles.matchMeta, { color: colors.textSecondary }]}>
+                      Nível: {item.difficulty} • {item.moves_count} lances • {item.date}
+                    </Text>
+                  </View>
+                </View>
+
+                <View style={styles.matchRight}>
+                  <View style={[styles.resultBadge, { backgroundColor: badgeBg }]}>
+                    <Text style={[styles.resultText, { color: badgeColor }]}>{item.result}</Text>
+                  </View>
+                  <Text
+                    style={[
+                      styles.ratingDiff,
+                      { color: item.rating_change >= 0 ? colors.primary : colors.danger },
+                    ]}
+                  >
+                    {item.rating_change >= 0 ? `+${item.rating_change}` : item.rating_change} Elo
+                  </Text>
+                </View>
               </View>
-            </View>
+            );
+          })}
+        </View>
+      )}
 
-            <View style={styles.matchMeta}>
-              <View style={[styles.badge, { backgroundColor: match.accent + '22' }]}> 
-                <Text style={[styles.badgeText, { color: match.accent }]}>{match.result}</Text>
-              </View>
-              <Text style={[styles.rating, { color: match.accent }]}>{match.rating}</Text>
-            </View>
-          </View>
-        ))}
-      </View>
-
+      {/* Back button */}
       <TouchableOpacity
-        style={styles.backButton}
+        style={[styles.backButton, { backgroundColor: colors.surface, borderColor: colors.border }]}
         activeOpacity={0.7}
         onPress={() => navigation.goBack()}
       >
-        <Ionicons name="arrow-back" size={18} color="#ffffff" />
-        <Text style={styles.backButtonText}>Voltar</Text>
+        <Ionicons name="arrow-back" size={18} color={colors.text} />
+        <Text style={[styles.backButtonText, { color: colors.text }]}>Voltar ao Menu</Text>
       </TouchableOpacity>
     </ScrollView>
   );
@@ -118,245 +194,211 @@ export default function HistoryScreen({ navigation }: Props) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#171614',
   },
   content: {
     padding: 18,
-    paddingBottom: 30,
+    paddingBottom: 32,
   },
   header: {
     flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 20,
+    alignItems: 'center',
+    marginBottom: 16,
   },
   eyebrow: {
-    color: '#81b64c',
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: '800',
-    letterSpacing: 1.8,
     textTransform: 'uppercase',
-    marginBottom: 5,
+    letterSpacing: 1,
+    marginBottom: 4,
   },
   title: {
-    color: '#ffffff',
-    fontSize: 30,
+    fontSize: 24,
     fontWeight: '900',
-    letterSpacing: -0.5,
+    marginBottom: 2,
   },
   subtitle: {
-    color: '#9d9995',
     fontSize: 13,
-    marginTop: 5,
   },
   headerIcon: {
-    width: 46,
-    height: 46,
-    borderRadius: 16,
+    width: 44,
+    height: 44,
+    borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#1d2a19',
-    borderWidth: 1,
-    borderColor: 'rgba(129,182,76,0.25)',
   },
   overviewCard: {
-    backgroundColor: '#20271d',
-    borderRadius: 22,
+    borderRadius: 20,
     borderWidth: 1,
-    borderColor: 'rgba(129,182,76,0.22)',
     padding: 18,
-    marginBottom: 14,
-    shadowColor: '#81b64c',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.14,
-    shadowRadius: 14,
-    elevation: 4,
+    marginBottom: 16,
   },
   overviewTop: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'flex-start',
+    alignItems: 'center',
+    marginBottom: 12,
   },
   overviewLabel: {
-    color: '#b4c3a6',
     fontSize: 12,
     fontWeight: '700',
   },
   overviewValue: {
-    color: '#ffffff',
-    fontSize: 30,
+    fontSize: 22,
     fontWeight: '900',
-    marginTop: 4,
   },
   overviewUnit: {
-    color: '#b4c3a6',
-    fontSize: 13,
-    fontWeight: '700',
+    fontSize: 15,
+    fontWeight: '800',
   },
   trendBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 5,
-    backgroundColor: 'rgba(129,182,76,0.14)',
-    borderRadius: 999,
-    paddingHorizontal: 9,
-    paddingVertical: 6,
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 12,
   },
   trendText: {
-    color: '#b9f27c',
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: '800',
   },
   progressTrack: {
     height: 7,
-    backgroundColor: 'rgba(255,255,255,0.09)',
     borderRadius: 99,
-    marginTop: 18,
     overflow: 'hidden',
+    marginBottom: 10,
   },
   progressFill: {
-    width: '68%',
     height: '100%',
-    backgroundColor: '#81b64c',
     borderRadius: 99,
   },
   overviewFooter: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginTop: 9,
+    alignItems: 'center',
   },
   overviewHint: {
-    color: '#9eae91',
-    fontSize: 11,
+    fontSize: 12,
   },
   overviewPercent: {
-    color: '#d9efc8',
-    fontSize: 11,
+    fontSize: 13,
     fontWeight: '800',
   },
   summaryRow: {
     flexDirection: 'row',
     gap: 10,
-    marginBottom: 18,
+    marginBottom: 20,
   },
   summaryCard: {
     flex: 1,
-    backgroundColor: '#1d1b1a',
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
-    paddingVertical: 12,
+    padding: 12,
     alignItems: 'center',
   },
-  summaryCardHighlight: {
-    borderColor: 'rgba(129,182,76,0.2)',
-  },
   summaryIcon: {
-    width: 28,
-    height: 28,
+    width: 32,
+    height: 32,
     borderRadius: 10,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 8,
-  },
-  summaryValue: {
-    color: '#ffffff',
-    fontWeight: '800',
-    fontSize: 20,
-  },
-  summaryLabel: {
-    color: '#a8a5a2',
-    fontSize: 11,
-    marginTop: 4,
-  },
-  panel: {
-    backgroundColor: '#1d1b1a',
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
-    padding: 16,
-  },
-  sectionTitle: {
-    color: '#ffffff',
-    fontSize: 18,
-    fontWeight: '800',
-    marginBottom: 3,
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 12,
-  },
-  sectionSubtitle: {
-    color: '#8d8985',
-    fontSize: 11,
-  },
-  liveDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: '#81b64c',
-    shadowColor: '#81b64c',
-    shadowOpacity: 0.8,
-    shadowRadius: 5,
-    elevation: 3,
-  },
-  matchRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 13,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255,255,255,0.06)',
-  },
-  matchAvatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 12,
-  },
-  matchAvatarText: {
-    fontSize: 16,
-    fontWeight: '900',
-  },
-  matchInfo: {
-    flex: 1,
-  },
-  matchOpponent: {
-    color: '#ffffff',
-    fontSize: 15,
-    fontWeight: '700',
-  },
-  matchMode: {
-    color: '#a8a5a2',
-    fontSize: 11,
-    marginTop: 4,
-  },
-  modeLine: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    marginTop: 4,
-  },
-  matchMeta: {
-    alignItems: 'flex-end',
-  },
-  badge: {
-    borderRadius: 999,
-    paddingHorizontal: 8,
-    paddingVertical: 5,
     marginBottom: 6,
   },
-  badgeText: {
-    fontSize: 10,
+  summaryValue: {
+    fontSize: 18,
     fontWeight: '800',
-    textTransform: 'uppercase',
+    marginBottom: 2,
   },
-  rating: {
-    fontSize: 12,
+  summaryLabel: {
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    marginBottom: 12,
+  },
+  list: {
+    gap: 10,
+    marginBottom: 20,
+  },
+  matchCard: {
+    borderRadius: 16,
+    borderWidth: 1,
+    padding: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  matchLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    flex: 1,
+  },
+  resultIconWrap: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  matchOpponent: {
+    fontSize: 15,
+    fontWeight: '800',
+    marginBottom: 2,
+  },
+  matchMeta: {
+    fontSize: 11,
+  },
+  matchRight: {
+    alignItems: 'flex-end',
+    gap: 4,
+  },
+  resultBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+  },
+  resultText: {
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  ratingDiff: {
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  emptyCard: {
+    borderRadius: 20,
+    borderWidth: 1,
+    padding: 24,
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  emptyTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    marginTop: 10,
+    marginBottom: 6,
+  },
+  emptySub: {
+    fontSize: 13,
+    textAlign: 'center',
+    lineHeight: 18,
+    marginBottom: 16,
+  },
+  emptyButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 12,
+  },
+  emptyButtonText: {
+    color: '#ffffff',
+    fontSize: 14,
     fontWeight: '800',
   },
   backButton: {
@@ -364,14 +406,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    backgroundColor: '#4a75a0',
-    paddingVertical: 13,
-    paddingHorizontal: 18,
-    borderRadius: 12,
-    marginTop: 18,
+    paddingVertical: 14,
+    borderRadius: 16,
+    borderWidth: 1,
   },
   backButtonText: {
-    color: '#ffffff',
     fontSize: 15,
     fontWeight: '700',
   },
