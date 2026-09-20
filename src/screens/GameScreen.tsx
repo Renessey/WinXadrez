@@ -92,20 +92,20 @@ const SquareCell = React.memo(function SquareCell({
           backgroundColor: isDark ? colors.boardDark : colors.boardLight,
         },
       ]}
-      activeOpacity={0.88}
+      activeOpacity={0.92}
       onPress={() => onPress(square)}
     >
-      {/* Camada suave de destaque para último lance e casa selecionada sobre o tabuleiro verde */}
+      {/* Camada suave e harmoniosa de destaque sobre o tabuleiro verde (sem amarelo estridente) */}
       {(isLastMoveSquare || isSelected) && (
         <View
           pointerEvents="none"
           style={[
             StyleSheet.absoluteFill,
             isLastMoveSquare && {
-              backgroundColor: isDark ? 'rgba(186, 202, 68, 0.55)' : 'rgba(247, 247, 105, 0.55)',
+              backgroundColor: isDark ? 'rgba(205, 210, 106, 0.40)' : 'rgba(245, 246, 130, 0.40)',
             },
             isSelected && {
-              backgroundColor: isDark ? 'rgba(186, 202, 68, 0.82)' : 'rgba(247, 247, 105, 0.82)',
+              backgroundColor: isDark ? 'rgba(186, 202, 68, 0.60)' : 'rgba(247, 247, 105, 0.60)',
             },
           ]}
         />
@@ -166,6 +166,7 @@ export default function GameScreen({ navigation }: Props) {
 
   // 60 FPS Native Piece Movement Animation
   const moveAnim = useRef(new Animated.ValueXY({ x: 0, y: 0 })).current;
+  const isAnimatingRef = useRef(false);
   const [animatingPiece, setAnimatingPiece] = useState<{
     piece: { type: PieceSymbol; color: Color };
     fromCol: number;
@@ -173,6 +174,21 @@ export default function GameScreen({ navigation }: Props) {
     toCol: number;
     toRow: number;
   } | null>(null);
+
+  // Mantém sempre o último símbolo de peça para evitar destruição de nós no layout nativo
+  const lastPieceRef = useRef<{ type: PieceSymbol; color: Color }>({ type: 'p', color: 'w' });
+  if (animatingPiece) {
+    lastPieceRef.current = animatingPiece.piece;
+  }
+
+  const selectedSquareRef = useRef(selectedSquare);
+  selectedSquareRef.current = selectedSquare;
+
+  const isBotThinkingRef = useRef(isBotThinking);
+  isBotThinkingRef.current = isBotThinking;
+
+  const gameRef = useRef(game);
+  gameRef.current = game;
 
   // Match end modal state
   const [gameOverModal, setGameOverModal] = useState<{
@@ -189,11 +205,12 @@ export default function GameScreen({ navigation }: Props) {
 
   const matchRecordedRef = useRef(false);
 
-  // Responsive board calculation to prevent any overflow or cutoffs
+  // Cálculo responsivo do tabuleiro com precisão exata por casa (sem desvios subpixel)
   const reservedVerticalSpace = insets.top + insets.bottom + 46 + 58 + 58 + 48 + 28;
   const maxBoardHeight = windowHeight - reservedVerticalSpace;
-  const boardSize = Math.floor(Math.min(windowWidth - 16, Math.max(260, maxBoardHeight)));
-  const squareSize = Math.floor(boardSize / 8);
+  const maxAvailable = Math.min(windowWidth - 16, Math.max(260, maxBoardHeight));
+  const squareSize = Math.floor(maxAvailable / 8);
+  const boardSize = squareSize * 8;
 
   // Check saved match on mount
   useEffect(() => {
@@ -458,21 +475,29 @@ export default function GameScreen({ navigation }: Props) {
     [difficulty, botName]
   );
 
-  // Smooth 60 FPS Native Piece Movement
+  // Deslizamento suave, veloz e contínuo a 60 FPS (curva ergonômica natural e estável)
   const animateAndCommitMove = (
     from: Square,
     to: Square,
     piece: { type: PieceSymbol; color: Color },
     onFinished: () => void
   ) => {
+    isAnimatingRef.current = true;
+
     const fromCol = files.indexOf(from[0]);
     const fromRow = 8 - parseInt(from[1], 10);
     const toCol = files.indexOf(to[0]);
     const toRow = 8 - parseInt(to[1], 10);
 
+    const startX = fromCol * squareSize;
+    const startY = fromRow * squareSize;
+    const targetX = toCol * squareSize;
+    const targetY = toRow * squareSize;
+
+    // Posiciona imediatamente no ponto de partida nativo
     moveAnim.setValue({
-      x: fromCol * squareSize,
-      y: fromRow * squareSize,
+      x: startX,
+      y: startY,
     });
 
     setAnimatingPiece({
@@ -483,17 +508,22 @@ export default function GameScreen({ navigation }: Props) {
       toRow,
     });
 
-    Animated.timing(moveAnim, {
-      toValue: {
-        x: toCol * squareSize,
-        y: toRow * squareSize,
-      },
-      duration: 175,
-      easing: Easing.out(Easing.cubic),
-      useNativeDriver: true,
-    }).start(() => {
-      onFinished();
-      setAnimatingPiece(null);
+    // Inicia a translação no próximo frame após a montagem visual da peça na origem,
+    // garantindo visualização contínua de 0% a 100% sem teleporte nem pulo
+    requestAnimationFrame(() => {
+      Animated.timing(moveAnim, {
+        toValue: {
+          x: targetX,
+          y: targetY,
+        },
+        duration: 230,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }).start(() => {
+        isAnimatingRef.current = false;
+        onFinished();
+        setAnimatingPiece(null);
+      });
     });
   };
 
@@ -537,50 +567,53 @@ export default function GameScreen({ navigation }: Props) {
         setIsBotThinking(false);
         checkGameOverState(currentGame);
       });
-    }, 350);
+    }, 420);
   };
 
-  // Handle square tap by user
+  // Handle square tap by user com referência estável para 60 FPS absoluto
   const handleSquarePress = useCallback(
     (square: Square) => {
-      if (isBotThinking || game.isGameOver()) return;
-      if (game.turn() !== 'w') return;
+      const currentGame = gameRef.current;
+      const currentSelected = selectedSquareRef.current;
 
-      if (selectedSquare) {
-        if (selectedSquare === square) {
+      if (isAnimatingRef.current || isBotThinkingRef.current || currentGame.isGameOver()) return;
+      if (currentGame.turn() !== 'w') return;
+
+      if (currentSelected) {
+        if (currentSelected === square) {
           setSelectedSquare(null);
           return;
         }
 
-        const friendlyPiece = game.get(square);
+        const friendlyPiece = currentGame.get(square);
         if (friendlyPiece && friendlyPiece.color === 'w') {
           setSelectedSquare(square);
           return;
         }
 
-        const legalMove = game
-          .moves({ square: selectedSquare, verbose: true })
+        const legalMove = currentGame
+          .moves({ square: currentSelected, verbose: true })
           .find((m) => m.to === square);
 
         if (legalMove) {
-          const movingPiece = game.get(selectedSquare);
+          const movingPiece = currentGame.get(currentSelected);
           if (!movingPiece) return;
 
-          const fromSq = selectedSquare;
+          const fromSq = currentSelected;
           setSelectedSquare(null);
 
           // Animate user's piece move smoothly at 60 FPS
           animateAndCommitMove(fromSq, square, movingPiece, () => {
             try {
-              game.move({ from: fromSq, to: square, promotion: 'q' });
-              setFen(game.fen());
+              currentGame.move({ from: fromSq, to: square, promotion: 'q' });
+              setFen(currentGame.fen());
               setLastMove({ from: fromSq, to: square });
               setBlackTime(120); // Reinicia os 2 minutos do bot para o lance dele
 
-              if (!game.isGameOver()) {
-                triggerBotMove(game);
+              if (!currentGame.isGameOver()) {
+                triggerBotMove(currentGame);
               } else {
-                checkGameOverState(game);
+                checkGameOverState(currentGame);
               }
             } catch {
               setSelectedSquare(null);
@@ -593,12 +626,12 @@ export default function GameScreen({ navigation }: Props) {
         return;
       }
 
-      const piece = game.get(square);
+      const piece = currentGame.get(square);
       if (piece && piece.color === 'w') {
         setSelectedSquare(square);
       }
     },
-    [selectedSquare, isBotThinking, game, squareSize]
+    [squareSize]
   );
 
   // Se passar 120 segundos, passa a vez
@@ -875,8 +908,8 @@ export default function GameScreen({ navigation }: Props) {
                   lastMove?.from === square ||
                   lastMove?.to === square ||
                   (animatingPiece !== null &&
-                    ((animatingPiece.fromRow === rowIndex && animatingPiece.fromCol === colIndex) ||
-                      (animatingPiece.toRow === rowIndex && animatingPiece.toCol === colIndex)));
+                    animatingPiece.fromRow === rowIndex &&
+                    animatingPiece.fromCol === colIndex);
 
                 const isCurrentlyMoving =
                   animatingPiece !== null &&
@@ -902,30 +935,29 @@ export default function GameScreen({ navigation }: Props) {
             </View>
           ))}
 
-          {/* 60 FPS Native Piece Translation Overlay */}
-          {animatingPiece && (
-            <Animated.View
+          {/* 60 FPS Native Piece Translation Overlay (sempre em árvore nativa para zero delay de frame) */}
+          <Animated.View
+            style={[
+              styles.movingPieceContainer,
+              {
+                width: squareSize,
+                height: squareSize,
+                opacity: animatingPiece ? 1 : 0,
+                transform: [{ translateX: moveAnim.x }, { translateY: moveAnim.y }],
+              },
+            ]}
+            pointerEvents="none"
+          >
+            <Text
               style={[
-                styles.movingPieceContainer,
-                {
-                  width: squareSize,
-                  height: squareSize,
-                  transform: [{ translateX: moveAnim.x }, { translateY: moveAnim.y }],
-                },
+                styles.pieceText,
+                lastPieceRef.current.color === 'b' ? styles.pieceBlack : styles.pieceWhite,
+                { fontSize: Math.floor(squareSize * 0.74) },
               ]}
-              pointerEvents="none"
             >
-              <Text
-                style={[
-                  styles.pieceText,
-                  animatingPiece.piece.color === 'b' ? styles.pieceBlack : styles.pieceWhite,
-                  { fontSize: Math.floor(squareSize * 0.74) },
-                ]}
-              >
-                {pieceSymbols[animatingPiece.piece.color][animatingPiece.piece.type]}
-              </Text>
-            </Animated.View>
-          )}
+              {pieceSymbols[lastPieceRef.current.color][lastPieceRef.current.type]}
+            </Text>
+          </Animated.View>
         </View>
       </View>
 
@@ -1315,7 +1347,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     zIndex: 999,
-    elevation: 12,
+    elevation: 16,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.35,
+    shadowRadius: 4,
   },
   bottomActionBar: {
     height: 48,
