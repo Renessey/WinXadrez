@@ -15,6 +15,7 @@ import PuzzleScreen from './src/screens/PuzzleScreen';
 import HistoryScreen from './src/screens/HistoryScreen';
 import LeaderboardScreen from './src/screens/LeaderboardScreen';
 import ProfileScreen from './src/screens/ProfileScreen';
+import AuthScreen from './src/screens/AuthScreen';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -146,7 +147,7 @@ export default function App() {
           <NavigationContainer theme={appTheme}>
           <StatusBar style="light" />
           <Stack.Navigator
-            initialRouteName="Home"
+            initialRouteName="Auth"
             screenOptions={{
               headerShown: false,
               contentStyle: {
@@ -155,6 +156,11 @@ export default function App() {
               animation: 'slide_from_right',
             }}
           >
+            <Stack.Screen
+              name="Auth"
+              component={AuthScreen}
+              options={{ title: 'Acesso' }}
+            />
             <Stack.Screen
               name="Home"
               component={HomeScreen}

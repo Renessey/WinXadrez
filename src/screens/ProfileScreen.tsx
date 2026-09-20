@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, TextInput } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 import { RootStackParamList } from '../types/navigation';
@@ -14,6 +14,8 @@ const stats = [
 
 export default function ProfileScreen({ navigation }: Props) {
   const [profileName, setProfileName] = useState('Mateus Silva');
+  const [draftName, setDraftName] = useState(profileName);
+  const [isEditingName, setIsEditingName] = useState(false);
   const [theme, setTheme] = useState('Escuro');
   const [notifications, setNotifications] = useState(true);
   const [privacy, setPrivacy] = useState('Pública');
@@ -40,7 +42,16 @@ export default function ProfileScreen({ navigation }: Props) {
   ];
 
   const handleEditProfile = () => {
-    setProfileName((current) => (current === 'Mateus Silva' ? 'Mateus S.' : 'Mateus Silva'));
+    setDraftName(profileName);
+    setIsEditingName(true);
+  };
+
+  const handleSaveName = () => {
+    const nextName = draftName.trim();
+    if (nextName.length >= 2) {
+      setProfileName(nextName);
+      setIsEditingName(false);
+    }
   };
 
   return (
@@ -51,12 +62,48 @@ export default function ProfileScreen({ navigation }: Props) {
         </View>
 
         <View style={styles.headerInfo}>
-          <Text style={styles.name}>{profileName}</Text>
-          <Text style={styles.subtitle}>Jogador de xadrez</Text>
+          {isEditingName ? (
+            <TextInput
+              style={styles.nameInput}
+              value={draftName}
+              onChangeText={setDraftName}
+              autoFocus
+              maxLength={28}
+              placeholder="Seu nome"
+              placeholderTextColor="#8f8a84"
+            />
+          ) : (
+            <Text style={styles.name}>{profileName}</Text>
+          )}
+          <Text style={styles.subtitle}>{isEditingName ? 'Edite seu nome de exibição' : 'Jogador de xadrez'}</Text>
         </View>
 
-        <TouchableOpacity style={styles.editButton} activeOpacity={0.8} onPress={handleEditProfile}>
-          <Ionicons name="create" size={16} color="#ffffff" />
+        {isEditingName ? (
+          <View style={styles.editActions}>
+            <TouchableOpacity style={styles.cancelEditButton} activeOpacity={0.8} onPress={() => setIsEditingName(false)}>
+              <Ionicons name="close" size={18} color="#ff9b9b" />
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.saveEditButton} activeOpacity={0.8} onPress={handleSaveName}>
+              <Ionicons name="checkmark" size={18} color="#171614" />
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <TouchableOpacity style={styles.editButton} activeOpacity={0.8} onPress={handleEditProfile}>
+            <Ionicons name="create" size={16} color="#ffffff" />
+          </TouchableOpacity>
+        )}
+      </View>
+
+      <View style={styles.accountCard}>
+        <View style={styles.accountIcon}>
+          <Ionicons name="person-circle-outline" size={22} color="#b9f27c" />
+        </View>
+        <View style={styles.accountInfo}>
+          <Text style={styles.accountTitle}>Sincronize seu progresso</Text>
+          <Text style={styles.accountSubtitle}>Entre ou crie uma conta para não perder seus dados.</Text>
+        </View>
+        <TouchableOpacity style={styles.accountButton} activeOpacity={0.8} onPress={() => navigation.navigate('Auth')}>
+          <Text style={styles.accountButtonText}>Entrar</Text>
         </TouchableOpacity>
       </View>
 
@@ -150,6 +197,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 18,
   },
+  nameInput: {
+    color: '#ffffff',
+    fontSize: 20,
+    fontWeight: '800',
+    minWidth: 130,
+    paddingVertical: 0,
+    borderBottomWidth: 1,
+    borderBottomColor: '#b9f27c',
+  },
   avatarWrap: {
     width: 68,
     height: 68,
@@ -185,6 +241,70 @@ const styles = StyleSheet.create({
     borderColor: '#4d4a47',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  editActions: {
+    flexDirection: 'row',
+    gap: 7,
+  },
+  cancelEditButton: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    backgroundColor: '#332122',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  saveEditButton: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    backgroundColor: '#b9f27c',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  accountCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#20271d',
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: 'rgba(129,182,76,0.24)',
+    padding: 13,
+    marginBottom: 18,
+  },
+  accountIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 13,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(129,182,76,0.14)',
+  },
+  accountInfo: {
+    flex: 1,
+    marginHorizontal: 10,
+  },
+  accountTitle: {
+    color: '#ffffff',
+    fontSize: 13,
+    fontWeight: '900',
+  },
+  accountSubtitle: {
+    color: '#9eae91',
+    fontSize: 10,
+    lineHeight: 15,
+    marginTop: 3,
+  },
+  accountButton: {
+    backgroundColor: '#b9f27c',
+    borderRadius: 11,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+  },
+  accountButtonText: {
+    color: '#171614',
+    fontSize: 11,
+    fontWeight: '900',
   },
   statsRow: {
     flexDirection: 'row',
