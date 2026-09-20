@@ -13,10 +13,20 @@ import {
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 import { RootStackParamList } from '../types/navigation';
-import { getProfile, createProfile, UserProfile, SkillLevel, getUserLevels, UserLevelsSummary } from '../database/db';
+import {
+  getProfile,
+  createProfile,
+  UserProfile,
+  SkillLevel,
+  getUserLevels,
+  UserLevelsSummary,
+  getActiveMatch,
+} from '../database/db';
 import { useAppTheme } from '../context/ThemeContext';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Home'>;
+
+type GameDifficulty = 'Fácil' | 'Médio' | 'Difícil';
 
 interface NavItem {
   title: string;
@@ -49,8 +59,9 @@ export default function HomeScreen({ navigation }: Props) {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [levels, setLevels] = useState<UserLevelsSummary>(() => getUserLevels());
 
-  // Onboarding & Tutorial Modal states
+  // Onboarding, Level Selection & Tutorial Modal states
   const [showOnboarding, setShowOnboarding] = useState(false);
+  const [showLevelModal, setShowLevelModal] = useState(false);
   const [showTutorial, setShowTutorial] = useState(false);
   const [playerName, setPlayerName] = useState('');
   const [selectedLevel, setSelectedLevel] = useState<SkillLevel>('Sei o básico');
@@ -118,9 +129,34 @@ export default function HomeScreen({ navigation }: Props) {
       setSelectedLevel('Sei o básico');
       setPendingMode(targetMode);
       setShowOnboarding(true);
-    } else {
-      navigation.navigate('Game', { mode: targetMode });
+      return;
     }
+
+    if (targetMode === 'pvp') {
+      navigation.navigate('Game', { mode: 'pvp' });
+      return;
+    }
+
+    // Modo Bot (Partida):
+    // Verifica se já tem partida em andamento salva
+    const saved = getActiveMatch();
+    const hasActiveMatch =
+      saved &&
+      saved.fen &&
+      saved.fen !== 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
+
+    if (hasActiveMatch) {
+      // Se tiver partida em andamento, não pergunta nível, vai direto e a tela de jogo pergunta se quer continuar
+      navigation.navigate('Game', { mode: 'bot' });
+    } else {
+      // Se não tiver partida em andamento, abre o modal para escolher em qual nível quer começar
+      setShowLevelModal(true);
+    }
+  };
+
+  const handleSelectGameDifficulty = (difficulty: GameDifficulty) => {
+    setShowLevelModal(false);
+    navigation.navigate('Game', { mode: 'bot', difficulty });
   };
 
   const handleSelectLevel = (level: SkillLevel) => {
@@ -602,6 +638,86 @@ export default function HomeScreen({ navigation }: Props) {
           </View>
         </View>
       </Modal>
+
+      {/* Modal: Escolha do Nível para Iniciar a Partida */}
+      <Modal
+        visible={showLevelModal}
+        animationType="fade"
+        transparent={true}
+        onRequestClose={() => setShowLevelModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.levelSelectBox, { backgroundColor: colors.surface, borderColor: colors.borderStrong }]}>
+            <View style={styles.levelSelectHeader}>
+              <View style={[styles.levelSelectBadge, { backgroundColor: 'rgba(129, 182, 76, 0.15)' }]}>
+                <Ionicons name="game-controller" size={24} color="#81b64c" />
+              </View>
+              <TouchableOpacity
+                style={styles.modalCloseBtn}
+                onPress={() => setShowLevelModal(false)}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="close" size={22} color={colors.textSecondary} />
+              </TouchableOpacity>
+            </View>
+
+            <Text style={[styles.levelSelectTitle, { color: colors.text }]}>
+              Em qual nível quer começar?
+            </Text>
+            <Text style={[styles.levelSelectSub, { color: colors.textSecondary }]}>
+              Escolha a dificuldade do bot para este confronto:
+            </Text>
+
+            <View style={styles.difficultyOptionList}>
+              {[
+                {
+                  level: 'Fácil' as GameDifficulty,
+                  title: 'Fácil',
+                  desc: 'Iniciante • Bot com jogadas simples e acessíveis',
+                  icon: 'school-outline',
+                  color: '#81b64c',
+                },
+                {
+                  level: 'Médio' as GameDifficulty,
+                  title: 'Médio',
+                  desc: 'Intermediário • Bot tático e balanceado',
+                  icon: 'hardware-chip-outline',
+                  color: '#38bdf8',
+                },
+                {
+                  level: 'Difícil' as GameDifficulty,
+                  title: 'Difícil',
+                  desc: 'Avançado • Bot desafiador e calculista',
+                  icon: 'flame-outline',
+                  color: '#f87171',
+                },
+              ].map((opt) => (
+                <TouchableOpacity
+                  key={opt.level}
+                  style={[
+                    styles.difficultyOptionCard,
+                    {
+                      backgroundColor: mode === 'dark' ? colors.cardSecondary : '#f7f6f2',
+                      borderColor: colors.border,
+                    },
+                  ]}
+                  activeOpacity={0.8}
+                  onPress={() => handleSelectGameDifficulty(opt.level)}
+                >
+                  <View style={[styles.diffIconWrap, { backgroundColor: opt.color + '22' }]}>
+                    <Ionicons name={opt.icon as any} size={22} color={opt.color} />
+                  </View>
+                  <View style={styles.diffInfo}>
+                    <Text style={[styles.diffTitle, { color: colors.text }]}>{opt.title}</Text>
+                    <Text style={[styles.diffDesc, { color: colors.textSecondary }]}>{opt.desc}</Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={18} color={opt.color} />
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+        </View>
+      </Modal>
     </ScrollView>
   );
 }
@@ -1037,5 +1153,67 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     fontSize: 15,
     fontWeight: '800',
+  },
+  levelSelectBox: {
+    width: '100%',
+    borderRadius: 24,
+    borderWidth: 1,
+    padding: 22,
+  },
+  levelSelectHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 14,
+  },
+  levelSelectBadge: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalCloseBtn: {
+    padding: 6,
+  },
+  levelSelectTitle: {
+    fontSize: 20,
+    fontWeight: '800',
+    marginBottom: 6,
+  },
+  levelSelectSub: {
+    fontSize: 13,
+    lineHeight: 18,
+    marginBottom: 18,
+  },
+  difficultyOptionList: {
+    gap: 12,
+  },
+  difficultyOptionCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 14,
+    borderRadius: 16,
+    borderWidth: 1,
+    gap: 12,
+  },
+  diffIconWrap: {
+    width: 42,
+    height: 42,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  diffInfo: {
+    flex: 1,
+  },
+  diffTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    marginBottom: 2,
+  },
+  diffDesc: {
+    fontSize: 12,
+    lineHeight: 16,
   },
 });

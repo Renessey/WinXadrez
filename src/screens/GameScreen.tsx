@@ -158,7 +158,7 @@ export default function GameScreen({ navigation, route }: Props) {
   const [selectedSquare, setSelectedSquare] = useState<Square | null>(null);
   const [lastMove, setLastMove] = useState<{ from: Square; to: Square } | null>(null);
   const [isBotThinking, setIsBotThinking] = useState(false);
-  const [difficulty, setDifficulty] = useState<GameDifficulty>('Médio');
+  const [difficulty, setDifficulty] = useState<GameDifficulty>(() => route.params?.difficulty || 'Médio');
   const [settingsModalVisible, setSettingsModalVisible] = useState(false);
 
   // Resume or Restart dialog modal state
@@ -230,7 +230,9 @@ export default function GameScreen({ navigation, route }: Props) {
     const p = getProfile();
     setProfile(p);
     setLevels(getUserLevels());
-    if (p) {
+    if (route.params?.difficulty) {
+      setDifficulty(route.params.difficulty);
+    } else if (p) {
       if (p.skill_level === 'Não sei jogar') setDifficulty('Fácil');
       else if (p.skill_level === 'Sei o básico') setDifficulty('Médio');
       else setDifficulty('Difícil');
@@ -242,7 +244,7 @@ export default function GameScreen({ navigation, route }: Props) {
       pendingSavedMatchRef.current = saved;
       setShowResumeModal(true);
     }
-  }, []);
+  }, [route.params?.difficulty]);
 
   // Save active match state whenever moves or clocks change, or on unmount
   useEffect(() => {
