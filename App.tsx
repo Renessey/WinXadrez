@@ -99,7 +99,7 @@ function MainContent() {
               styles.orb,
               styles.orbPrimary,
               {
-                opacity: mode === 'dark' ? 0.18 : 0.08,
+                opacity: mode === 'dark' ? 0 : 0.08,
                 transform: [
                   { translateX: drift.interpolate({ inputRange: [0, 1], outputRange: [0, 16] }) },
                   { translateY: drift.interpolate({ inputRange: [0, 1], outputRange: [0, -12] }) },
@@ -202,7 +202,7 @@ export default function App() {
 
   if (!fontsLoaded) {
     return (
-      <View style={{ flex: 1, backgroundColor: '#171614', alignItems: 'center', justifyContent: 'center' }}>
+      <View style={{ flex: 1, backgroundColor: '#000000', alignItems: 'center', justifyContent: 'center' }}>
         <ActivityIndicator size="large" color="#81b64c" />
       </View>
     );
@@ -218,7 +218,7 @@ export default function App() {
 const styles = StyleSheet.create({
   appShell: {
     flex: 1,
-    backgroundColor: '#171614',
+    backgroundColor: '#000000',
   },
   backgroundLayer: {
     ...StyleSheet.absoluteFill,

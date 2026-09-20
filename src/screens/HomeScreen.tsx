@@ -365,7 +365,7 @@ export default function HomeScreen({ navigation }: Props) {
                 style={[
                   styles.textInput,
                   {
-                    backgroundColor: mode === 'dark' ? '#262421' : '#f0eee8',
+                    backgroundColor: mode === 'dark' ? colors.cardSecondary : '#f0eee8',
                     color: colors.text,
                     borderColor: colors.borderStrong,
                   },
@@ -416,7 +416,7 @@ export default function HomeScreen({ navigation }: Props) {
                     style={[
                       styles.levelCard,
                       {
-                        backgroundColor: mode === 'dark' ? '#262421' : '#f7f6f2',
+                        backgroundColor: mode === 'dark' ? colors.cardSecondary : '#f7f6f2',
                         borderColor: isSelected ? opt.color : colors.border,
                         borderWidth: isSelected ? 2 : 1,
                       },
@@ -496,7 +496,7 @@ export default function HomeScreen({ navigation }: Props) {
             </View>
 
             <ScrollView style={styles.tutorialScroll}>
-              <View style={[styles.tutorialSection, { backgroundColor: mode === 'dark' ? '#262421' : '#f7f6f2' }]}>
+              <View style={[styles.tutorialSection, { backgroundColor: mode === 'dark' ? colors.cardSecondary : '#f7f6f2' }]}>
                 <Text style={[styles.tutorialSectionTitle, { color: colors.accent }]}>
                   🎯 O Objetivo Principal
                 </Text>
@@ -505,7 +505,7 @@ export default function HomeScreen({ navigation }: Props) {
                 </Text>
               </View>
 
-              <View style={[styles.tutorialSection, { backgroundColor: mode === 'dark' ? '#262421' : '#f7f6f2' }]}>
+              <View style={[styles.tutorialSection, { backgroundColor: mode === 'dark' ? colors.cardSecondary : '#f7f6f2' }]}>
                 <Text style={[styles.tutorialSectionTitle, { color: colors.primary }]}>
                   ♞ Como as Peças se Movem
                 </Text>
@@ -571,7 +571,7 @@ export default function HomeScreen({ navigation }: Props) {
                 </View>
               </View>
 
-              <View style={[styles.tutorialSection, { backgroundColor: mode === 'dark' ? '#262421' : '#f7f6f2' }]}>
+              <View style={[styles.tutorialSection, { backgroundColor: mode === 'dark' ? colors.cardSecondary : '#f7f6f2' }]}>
                 <Text style={[styles.tutorialSectionTitle, { color: '#5fa8ff' }]}>
                   💡 3 Dicas de Ouro
                 </Text>

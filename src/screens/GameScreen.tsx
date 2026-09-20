@@ -29,6 +29,7 @@ import {
 } from '../database/db';
 import { useAppTheme } from '../context/ThemeContext';
 import { cancelGameNotifications, notifyGameInProgress } from '../services/notifications';
+import { getRandomBotName } from '../data/botNames';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Game'>;
 
@@ -90,13 +91,26 @@ const SquareCell = React.memo(function SquareCell({
           height: squareSize,
           backgroundColor: isDark ? colors.boardDark : colors.boardLight,
         },
-        // Modern dark soft cyan highlight (No ugly yellow!)
-        isLastMoveSquare && styles.modernLastMoveOverlay,
-        isSelected && styles.modernSelectedSquareOverlay,
       ]}
       activeOpacity={0.88}
       onPress={() => onPress(square)}
     >
+      {/* Camada suave de destaque para último lance e casa selecionada sobre o tabuleiro verde */}
+      {(isLastMoveSquare || isSelected) && (
+        <View
+          pointerEvents="none"
+          style={[
+            StyleSheet.absoluteFill,
+            isLastMoveSquare && {
+              backgroundColor: isDark ? 'rgba(186, 202, 68, 0.55)' : 'rgba(247, 247, 105, 0.55)',
+            },
+            isSelected && {
+              backgroundColor: isDark ? 'rgba(186, 202, 68, 0.82)' : 'rgba(247, 247, 105, 0.82)',
+            },
+          ]}
+        />
+      )}
+
       {/* Target moves dots & capture rings */}
       {isTarget && !piece && <View style={styles.modernEmptyTargetDot} />}
       {isTarget && piece && (
@@ -114,7 +128,7 @@ const SquareCell = React.memo(function SquareCell({
           style={[
             styles.pieceText,
             piece.color === 'b' ? styles.pieceBlack : styles.pieceWhite,
-            { fontSize: Math.floor(squareSize * 0.74) },
+            { fontSize: Math.floor(squareSize * 0.74), zIndex: 3 },
           ]}
         >
           {pieceSymbols[piece.color][piece.type]}
@@ -131,6 +145,8 @@ export default function GameScreen({ navigation }: Props) {
 
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [levels, setLevels] = useState<UserLevelsSummary>(() => getUserLevels());
+  const [botName, setBotName] = useState(() => getRandomBotName());
+  const [turnNotice, setTurnNotice] = useState<string | null>(null);
 
   const [game, setGame] = useState(() => new Chess());
   const [fen, setFen] = useState(game.fen());
@@ -208,11 +224,12 @@ export default function GameScreen({ navigation }: Props) {
         difficulty,
         lastMove: lastMove ? { from: lastMove.from, to: lastMove.to } : null,
         historyLength: game.history().length,
+        opponentName: botName,
       });
     }
-  }, [fen, whiteTime, blackTime, difficulty, lastMove]);
+  }, [fen, whiteTime, blackTime, difficulty, lastMove, botName]);
 
-  // Cleanup on unmount
+  // Limpeza ao desmontar tela
   useEffect(() => {
     return () => {
       cancelGameNotifications();
@@ -224,7 +241,7 @@ export default function GameScreen({ navigation }: Props) {
     const subscription = AppState.addEventListener('change', (nextAppState: AppStateStatus) => {
       if (nextAppState.match(/inactive|background/)) {
         if (!game.isGameOver() && game.history().length > 0) {
-          notifyGameInProgress('Bot WinXadrez');
+          notifyGameInProgress(botName);
         }
       }
     });
@@ -232,61 +249,7 @@ export default function GameScreen({ navigation }: Props) {
     return () => {
       subscription.remove();
     };
-  }, [game]);
-
-  // Chess clocks countdown timer
-  useEffect(() => {
-    if (game.isGameOver() || gameOverModal.visible || showResumeModal) return;
-
-    const timer = setInterval(() => {
-      if (game.turn() === 'w') {
-        setWhiteTime((prev) => {
-          if (prev <= 1) {
-            handleTimeOut('w');
-            return 0;
-          }
-          return prev - 1;
-        });
-      } else {
-        setBlackTime((prev) => {
-          if (prev <= 1) {
-            handleTimeOut('b');
-            return 0;
-          }
-          return prev - 1;
-        });
-      }
-    }, 1000);
-
-    return () => clearInterval(timer);
-  }, [game, gameOverModal.visible, showResumeModal]);
-
-  const handleTimeOut = (loserColor: Color) => {
-    if (matchRecordedRef.current) return;
-    matchRecordedRef.current = true;
-    clearActiveMatch();
-    cancelGameNotifications();
-
-    if (loserColor === 'w') {
-      recordMatchResult('Derrota', 0, difficulty, game.history().length, 'Bot WinXadrez');
-      setLevels(getUserLevels());
-      setGameOverModal({
-        visible: true,
-        title: 'Tempo Esgotado!',
-        description: 'Seu tempo acabou. Vitória das Pretas.',
-        isWin: false,
-      });
-    } else {
-      recordMatchResult('Vitória', 0, difficulty, game.history().length, 'Bot WinXadrez');
-      setLevels(getUserLevels());
-      setGameOverModal({
-        visible: true,
-        title: 'Tempo Esgotado!',
-        description: 'O tempo do adversário acabou. Vitória sua!',
-        isWin: true,
-      });
-    }
-  };
+  }, [game, botName]);
 
   const board = useMemo(() => game.board(), [fen, game]);
 
@@ -340,6 +303,8 @@ export default function GameScreen({ navigation }: Props) {
     setIsBotThinking(false);
     setWhiteTime(120);
     setBlackTime(120);
+    setBotName(getRandomBotName());
+    setTurnNotice(null);
     matchRecordedRef.current = false;
     setGameOverModal({ visible: false, title: '', description: '', isWin: false });
     setSettingsModalVisible(false);
@@ -356,6 +321,7 @@ export default function GameScreen({ navigation }: Props) {
         setFen(saved.fen);
         setWhiteTime(saved.whiteTime ?? 120);
         setBlackTime(saved.blackTime ?? 120);
+        if (saved.opponentName) setBotName(saved.opponentName);
         if (saved.difficulty) setDifficulty(saved.difficulty);
         if (saved.lastMove) setLastMove(saved.lastMove);
         matchRecordedRef.current = false;
@@ -461,15 +427,15 @@ export default function GameScreen({ navigation }: Props) {
         const winner = currentGame.turn() === 'w' ? 'b' : 'w';
         const isWin = winner === 'w';
 
-        recordMatchResult(isWin ? 'Vitória' : 'Derrota', 0, difficulty, totalMoves, 'Bot WinXadrez');
+        recordMatchResult(isWin ? 'Vitória' : 'Derrota', 0, difficulty, totalMoves, botName);
         setLevels(getUserLevels());
 
         setGameOverModal({
           visible: true,
           title: isWin ? 'Vitória por Xeque-mate!' : 'Derrota por Xeque-mate',
           description: isWin
-            ? `Parabéns! Você venceu no modo ${difficulty} e pontuou rumo ao próximo nível!`
-            : 'O Bot WinXadrez aplicou um xeque-mate. Analise a partida e tente novamente!',
+            ? `Parabéns! Você venceu ${botName} no modo ${difficulty} e pontuou rumo ao próximo nível!`
+            : `${botName} aplicou um xeque-mate. Analise a partida e tente novamente!`,
           isWin,
         });
       } else if (currentGame.isDraw()) {
@@ -478,7 +444,7 @@ export default function GameScreen({ navigation }: Props) {
         else if (currentGame.isThreefoldRepetition()) desc = 'Empate por repetição tripla de lances.';
         else if (currentGame.isInsufficientMaterial()) desc = 'Empate por material insuficiente.';
 
-        recordMatchResult('Empate', 0, difficulty, totalMoves, 'Bot WinXadrez');
+        recordMatchResult('Empate', 0, difficulty, totalMoves, botName);
         setLevels(getUserLevels());
 
         setGameOverModal({
@@ -489,7 +455,7 @@ export default function GameScreen({ navigation }: Props) {
         });
       }
     },
-    [difficulty]
+    [difficulty, botName]
   );
 
   // Smooth 60 FPS Native Piece Movement
@@ -564,6 +530,7 @@ export default function GameScreen({ navigation }: Props) {
           currentGame.move(botMove);
           setFen(currentGame.fen());
           setLastMove({ from: botMove.from, to: botMove.to });
+          setWhiteTime(120); // Reinicia os 2 minutos do jogador para o seu lance
         } catch {
           // fallback
         }
@@ -608,6 +575,7 @@ export default function GameScreen({ navigation }: Props) {
               game.move({ from: fromSq, to: square, promotion: 'q' });
               setFen(game.fen());
               setLastMove({ from: fromSq, to: square });
+              setBlackTime(120); // Reinicia os 2 minutos do bot para o lance dele
 
               if (!game.isGameOver()) {
                 triggerBotMove(game);
@@ -633,6 +601,117 @@ export default function GameScreen({ navigation }: Props) {
     [selectedSquare, isBotThinking, game, squareSize]
   );
 
+  // Se passar 120 segundos, passa a vez
+  const handlePassTurn = useCallback((currentTurn: Color) => {
+    if (game.isGameOver() || isBotThinking) return;
+
+    const nextTurn = currentTurn === 'w' ? 'b' : 'w';
+    setTurnNotice(
+      currentTurn === 'w'
+        ? `120s esgotados! Vez passada para ${botName}.`
+        : '120s esgotados! Sua vez de jogar.'
+    );
+    setTimeout(() => setTurnNotice(null), 3500);
+
+    // Se estiver em xeque, executa um lance defensivo legal para não deixar o rei vulnerável
+    if (game.isCheck()) {
+      const legalMoves = game.moves({ verbose: true });
+      if (legalMoves.length > 0) {
+        const autoMove = legalMoves[Math.floor(Math.random() * legalMoves.length)];
+        game.move(autoMove);
+        setFen(game.fen());
+        setLastMove({ from: autoMove.from, to: autoMove.to });
+        setSelectedSquare(null);
+
+        if (currentTurn === 'w') {
+          setBlackTime(120);
+          if (!game.isGameOver()) {
+            triggerBotMove(game);
+          } else {
+            checkGameOverState(game);
+          }
+        } else {
+          setWhiteTime(120);
+        }
+        return;
+      }
+    }
+
+    // Se não estiver em xeque, inverte a vez no FEN
+    const tokens = game.fen().split(' ');
+    tokens[1] = nextTurn;
+    const newFen = tokens.join(' ');
+
+    try {
+      const nextGame = new Chess(newFen);
+      setGame(nextGame);
+      setFen(newFen);
+      setSelectedSquare(null);
+
+      if (nextTurn === 'b') {
+        setBlackTime(120);
+        if (!nextGame.isGameOver()) {
+          triggerBotMove(nextGame);
+        } else {
+          checkGameOverState(nextGame);
+        }
+      } else {
+        setWhiteTime(120);
+      }
+    } catch {
+      const legalMoves = game.moves({ verbose: true });
+      if (legalMoves.length > 0) {
+        const autoMove = legalMoves[0];
+        game.move(autoMove);
+        setFen(game.fen());
+        setLastMove({ from: autoMove.from, to: autoMove.to });
+        setSelectedSquare(null);
+
+        if (currentTurn === 'w') {
+          setBlackTime(120);
+          if (!game.isGameOver()) {
+            triggerBotMove(game);
+          } else {
+            checkGameOverState(game);
+          }
+        } else {
+          setWhiteTime(120);
+        }
+      }
+    }
+  }, [game, isBotThinking, botName, checkGameOverState, triggerBotMove]);
+
+  // Relógio por lance: 120s por jogada. Se passar 120s, passa a vez!
+  useEffect(() => {
+    if (game.isGameOver() || gameOverModal.visible || showResumeModal) return;
+
+    const timer = setInterval(() => {
+      if (game.turn() === 'w') {
+        setWhiteTime((prev) => {
+          if (prev <= 1) {
+            setTimeout(() => {
+              handlePassTurn('w');
+            }, 0);
+            return 120;
+          }
+          return prev - 1;
+        });
+      } else {
+        setBlackTime((prev) => {
+          if (prev <= 1) {
+            setTimeout(() => {
+              handlePassTurn('b');
+            }, 0);
+            return 120;
+          }
+          return prev - 1;
+        });
+      }
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [game, gameOverModal.visible, showResumeModal, handlePassTurn]);
+
   // Forfeit handler
   const handleForfeit = () => {
     if (game.isGameOver() || matchRecordedRef.current) return;
@@ -649,12 +728,12 @@ export default function GameScreen({ navigation }: Props) {
             matchRecordedRef.current = true;
             clearActiveMatch();
             cancelGameNotifications();
-            recordMatchResult('Derrota', 0, difficulty, game.history().length, 'Bot WinXadrez');
+            recordMatchResult('Derrota', 0, difficulty, game.history().length, botName);
             setLevels(getUserLevels());
             setGameOverModal({
               visible: true,
               title: 'Partida Abandonada',
-              description: 'Você desistiu do confronto. Vitória do adversário.',
+              description: `Você desistiu do confronto contra ${botName}.`,
               isWin: false,
             });
           },
@@ -667,7 +746,7 @@ export default function GameScreen({ navigation }: Props) {
   const handleOfferDraw = () => {
     if (game.isGameOver() || matchRecordedRef.current) return;
 
-    Alert.alert('Proposta de Empate', 'Deseja propor empate ao Bot WinXadrez?', [
+    Alert.alert('Proposta de Empate', `Deseja propor empate a ${botName}?`, [
       { text: 'Voltar', style: 'cancel' },
       {
         text: 'Propor Empate',
@@ -676,18 +755,18 @@ export default function GameScreen({ navigation }: Props) {
             matchRecordedRef.current = true;
             clearActiveMatch();
             cancelGameNotifications();
-            recordMatchResult('Empate', 0, difficulty, game.history().length, 'Bot WinXadrez');
+            recordMatchResult('Empate', 0, difficulty, game.history().length, botName);
             setLevels(getUserLevels());
             setGameOverModal({
               visible: true,
               title: 'Empate por Acordo!',
-              description: 'O Bot WinXadrez aceitou a sua proposta de empate.',
+              description: `${botName} aceitou a sua proposta de empate.`,
               isWin: false,
             });
           } else {
             Alert.alert(
               'Proposta Recusada',
-              'O Bot WinXadrez avaliou a posição com vantagem e decidiu continuar jogando!'
+              `${botName} avaliou a posição com vantagem e decidiu continuar jogando!`
             );
           }
         },
@@ -744,7 +823,7 @@ export default function GameScreen({ navigation }: Props) {
 
         <View style={styles.playerTextContainer}>
           <Text style={[styles.playerNameText, { color: colors.text }]} numberOfLines={1}>
-            Bot WinXadrez ({difficulty})
+            {botName} ({difficulty})
           </Text>
           <View style={styles.playerMetaRow}>
             <Text style={[styles.timerText, { color: colors.text }]}>{formatTimer(blackTime)}</Text>
@@ -774,7 +853,15 @@ export default function GameScreen({ navigation }: Props) {
         </View>
       </View>
 
-      {/* 3. Chess Board (Otimizado, fluido, sem cortes e sem tons amarelos) */}
+      {/* 3. Banner discreto quando 120s esgotam e a vez é passada */}
+      {turnNotice && (
+        <View style={[styles.turnNoticeBanner, { backgroundColor: 'rgba(56, 189, 248, 0.15)', borderColor: colors.accent }]}>
+          <Ionicons name="time-outline" size={15} color={colors.accent} />
+          <Text style={[styles.turnNoticeText, { color: colors.accent }]}>{turnNotice}</Text>
+        </View>
+      )}
+
+      {/* 4. Chess Board (Otimizado, fluido, sem cortes e sem tons amarelos) */}
       <View style={styles.boardCenterContainer}>
         <View style={[styles.boardWrapper, { width: boardSize, height: boardSize, borderColor: colors.borderStrong }]}>
           {board.map((row, rowIndex) => (
@@ -784,7 +871,12 @@ export default function GameScreen({ navigation }: Props) {
                 const isDark = (rowIndex + colIndex) % 2 === 1;
                 const isSelected = selectedSquare === square;
                 const isTarget = legalTargets.includes(square);
-                const isLastMoveSquare = lastMove?.from === square || lastMove?.to === square;
+                const isLastMoveSquare =
+                  lastMove?.from === square ||
+                  lastMove?.to === square ||
+                  (animatingPiece !== null &&
+                    ((animatingPiece.fromRow === rowIndex && animatingPiece.fromCol === colIndex) ||
+                      (animatingPiece.toRow === rowIndex && animatingPiece.toCol === colIndex)));
 
                 const isCurrentlyMoving =
                   animatingPiece !== null &&
@@ -853,7 +945,7 @@ export default function GameScreen({ navigation }: Props) {
             <Text style={[styles.timerText, { color: colors.text }]}>{formatTimer(whiteTime)}</Text>
             <Ionicons name="time-outline" size={13} color={colors.textSecondary} style={{ marginLeft: 6, marginRight: 2 }} />
             <Text style={[styles.metaSubText, { color: colors.textSecondary }]}>
-              Nível {levels.totalLevel}
+              Tempo da Vez • Nível {levels.totalLevel}
             </Text>
             <View style={[styles.diffBadgePill, { backgroundColor: colors.cardSecondary }]}>
               <Text style={[styles.diffBadgePillText, { color: colors.accent }]}>{difficulty}</Text>
@@ -916,7 +1008,7 @@ export default function GameScreen({ navigation }: Props) {
 
             <Text style={[styles.dialogTitle, { color: colors.text }]}>Partida em Andamento</Text>
             <Text style={[styles.dialogDesc, { color: colors.textSecondary }]}>
-              Você tem um confronto ativo contra o Bot WinXadrez. Deseja continuar de onde parou ou iniciar uma nova partida?
+              Você tem um confronto ativo contra {botName}. Deseja continuar de onde parou ou iniciar uma nova partida?
             </Text>
 
             <View style={styles.dialogButtonsCol}>
@@ -1185,28 +1277,22 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     position: 'relative',
-  },
-  // Modern Dark Overlays (No Yellow!)
-  modernLastMoveOverlay: {
-    backgroundColor: 'rgba(56, 189, 248, 0.16)',
-  },
-  modernSelectedSquareOverlay: {
-    borderWidth: 2.5,
-    borderColor: '#38bdf8',
-    backgroundColor: 'rgba(56, 189, 248, 0.28)',
+    overflow: 'hidden',
   },
   modernEmptyTargetDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: 'rgba(56, 189, 248, 0.65)',
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: 'rgba(0, 0, 0, 0.25)',
     position: 'absolute',
+    zIndex: 4,
   },
   modernCaptureRing: {
     borderRadius: 999,
-    borderWidth: 3,
-    borderColor: 'rgba(244, 63, 94, 0.65)',
+    borderWidth: 3.5,
+    borderColor: 'rgba(0, 0, 0, 0.25)',
     position: 'absolute',
+    zIndex: 4,
   },
   pieceText: {
     fontWeight: '900',
@@ -1215,12 +1301,12 @@ const styles = StyleSheet.create({
   },
   pieceWhite: {
     color: '#ffffff',
-    textShadowColor: '#0f172a',
+    textShadowColor: 'rgba(0, 0, 0, 0.65)',
     textShadowOffset: { width: 0, height: 1.5 },
     textShadowRadius: 2,
   },
   pieceBlack: {
-    color: '#0f172a',
+    color: '#1a1a1a',
   },
   movingPieceContainer: {
     position: 'absolute',
@@ -1229,6 +1315,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     zIndex: 999,
+    elevation: 12,
   },
   bottomActionBar: {
     height: 48,
@@ -1247,6 +1334,22 @@ const styles = StyleSheet.create({
   },
   bottomActionText: {
     fontSize: 14,
+    fontWeight: '700',
+  },
+  turnNoticeBanner: {
+    marginHorizontal: 16,
+    marginVertical: 2,
+    paddingVertical: 5,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+  },
+  turnNoticeText: {
+    fontSize: 12,
     fontWeight: '700',
   },
 

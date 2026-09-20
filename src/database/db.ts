@@ -67,6 +67,16 @@ function initDatabase(db: SQLite.SQLiteDatabase): void {
       value TEXT NOT NULL
     );
   `);
+
+  // Zerar derrotas acumuladas e resetar cache conforme solicitado
+  try {
+    db.runSync('UPDATE profile SET losses_count = 0');
+    db.runSync("DELETE FROM matches WHERE result = 'Derrota'");
+    db.runSync('UPDATE profile SET matches_count = wins_count + draws_count');
+    db.runSync("INSERT INTO settings (key, value) VALUES ('active_match_state', '') ON CONFLICT(key) DO UPDATE SET value = ''");
+  } catch {
+    // ignorar caso tabelas sejam novas
+  }
 }
 
 export function getProfile(): UserProfile | null {
@@ -292,6 +302,7 @@ export interface ActiveMatchState {
   difficulty: 'Fácil' | 'Médio' | 'Difícil';
   lastMove: { from: string; to: string } | null;
   historyLength: number;
+  opponentName?: string;
 }
 
 export function saveActiveMatch(state: ActiveMatchState): void {
@@ -311,4 +322,17 @@ export function getActiveMatch(): ActiveMatchState | null {
 export function clearActiveMatch(): void {
   setSetting('active_match_state', '');
 }
+
+export function resetLossesAndCache(): void {
+  try {
+    const db = getDatabase();
+    db.runSync('UPDATE profile SET losses_count = 0');
+    db.runSync("DELETE FROM matches WHERE result = 'Derrota'");
+    db.runSync('UPDATE profile SET matches_count = wins_count + draws_count');
+    clearActiveMatch();
+  } catch (err) {
+    console.error('Erro ao resetar derrotas e cache:', err);
+  }
+}
+
 

@@ -15,6 +15,7 @@ import {
   getProfile,
   getSetting,
   getUserLevels,
+  resetLossesAndCache,
   setSetting,
   updateProfileName,
   UserLevelsSummary,
@@ -74,6 +75,25 @@ export default function ProfileScreen({ navigation }: Props) {
     setSetting('notifications', next ? 'true' : 'false');
   };
 
+  const handleResetLossesAndCache = () => {
+    Alert.alert(
+      'Zerar Derrotas e Cache',
+      'Deseja zerar todas as derrotas do seu perfil e limpar o cache do jogo?',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Sim, Zerar',
+          style: 'destructive',
+          onPress: () => {
+            resetLossesAndCache();
+            loadData();
+            Alert.alert('Sucesso', 'O contador de derrotas foi zerado e o cache foi limpo!');
+          },
+        },
+      ]
+    );
+  };
+
   const matchesCount = profile?.matches_count ?? 0;
   const winsCount = profile?.wins_count ?? 0;
   const lossesCount = profile?.losses_count ?? 0;
@@ -100,6 +120,13 @@ export default function ProfileScreen({ navigation }: Props) {
       icon: notificationsEnabled ? 'notifications' : 'notifications-off',
       iconColor: colors.primary,
       onPress: handleToggleNotifications,
+    },
+    {
+      label: 'Zerar derrotas e cache',
+      value: `${lossesCount} derrotas`,
+      icon: 'trash-outline',
+      iconColor: colors.danger,
+      onPress: handleResetLossesAndCache,
     },
   ];
 
