@@ -13,7 +13,7 @@ const stats = [
 ];
 
 export default function ProfileScreen({ navigation }: Props) {
-  const [profileName, setProfileName] = useState('Mateus Silva');
+  const [profileName, setProfileName] = useState('Usuário');
   const [draftName, setDraftName] = useState(profileName);
   const [isEditingName, setIsEditingName] = useState(false);
   const [theme, setTheme] = useState('Escuro');

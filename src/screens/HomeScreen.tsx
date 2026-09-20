@@ -86,9 +86,9 @@ export default function HomeScreen({ navigation }: Props) {
           <Text style={styles.brandSub}>Club premium</Text>
         </View>
 
-        <TouchableOpacity style={styles.statusChip} activeOpacity={0.8}>
-          <Ionicons name="flash" size={12} color="#171614" />
-          <Text style={styles.statusText}>ON</Text>
+        <TouchableOpacity style={styles.statusChip} activeOpacity={0.8} onPress={() => navigation.navigate('Auth')}>
+          <Ionicons name="log-in-outline" size={14} color="#171614" />
+          <Text style={styles.statusText}>Entrar</Text>
         </TouchableOpacity>
       </View>
 

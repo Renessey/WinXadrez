@@ -118,7 +118,6 @@ export default function GameScreen({ navigation }: Props) {
       </View>
 
       <View style={styles.statusBar}>
-        <View style={styles.statusDot} />
         <Text style={styles.statusText}>{gameStatus}</Text>
         {errorMessage ? <Text style={styles.errorText}>{errorMessage}</Text> : null}
       </View>
@@ -150,6 +149,7 @@ export default function GameScreen({ navigation }: Props) {
         <Ionicons name="arrow-back" size={18} color="#ffffff" />
         <Text style={styles.backButtonText}>Voltar</Text>
       </TouchableOpacity>
+
     </View>
   );
 }

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   KeyboardAvoidingView,
   Platform,
@@ -8,6 +8,8 @@ import {
   TextInput,
   TouchableOpacity,
   View,
+  Animated,
+  Easing,
 } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
@@ -17,12 +19,53 @@ type Props = NativeStackScreenProps<RootStackParamList, 'Auth'>;
 type AuthMode = 'login' | 'signup';
 
 export default function AuthScreen({ navigation }: Props) {
+  const entrance = useRef(new Animated.Value(0)).current;
+  const constellationPulse = useRef(new Animated.Value(0)).current;
+  const guestPulse = useRef(new Animated.Value(0)).current;
   const [mode, setMode] = useState<AuthMode>('login');
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
+
+  useEffect(() => {
+    const entranceAnimation = Animated.timing(entrance, {
+      toValue: 1,
+      duration: 850,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    });
+
+    entranceAnimation.start();
+    return () => {
+      entranceAnimation.stop();
+    };
+  }, [entrance]);
+
+  useEffect(() => {
+    const pulseAnimation = Animated.loop(
+      Animated.sequence([
+        Animated.timing(constellationPulse, { toValue: 1, duration: 1500, useNativeDriver: true }),
+        Animated.timing(constellationPulse, { toValue: 0, duration: 1500, useNativeDriver: true }),
+      ]),
+    );
+
+    pulseAnimation.start();
+    return () => pulseAnimation.stop();
+  }, [constellationPulse]);
+
+  useEffect(() => {
+    const pulseAnimation = Animated.loop(
+      Animated.sequence([
+        Animated.timing(guestPulse, { toValue: 1, duration: 1100, useNativeDriver: true }),
+        Animated.timing(guestPulse, { toValue: 0, duration: 1100, useNativeDriver: true }),
+      ]),
+    );
+
+    pulseAnimation.start();
+    return () => pulseAnimation.stop();
+  }, [guestPulse]);
 
   const isSignup = mode === 'signup';
 
@@ -56,12 +99,40 @@ export default function AuthScreen({ navigation }: Props) {
       style={styles.screen}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
+      <View pointerEvents="none" style={styles.astralBackground}>
+        {[['11%', '18%'], ['84%', '12%'], ['92%', '38%'], ['7%', '61%'], ['88%', '73%'], ['18%', '88%'], ['68%', '91%'], ['35%', '14%'], ['58%', '78%'], ['96%', '56%']].map(([left, top], index) => (
+          <Animated.View
+            key={`${left}-${top}`}
+            style={[
+              styles.backgroundStar,
+              { left: left as `${number}%`, top: top as `${number}%`, width: index % 3 === 0 ? 4 : 3, height: index % 3 === 0 ? 4 : 3 },
+              {
+                opacity: constellationPulse.interpolate({
+                  inputRange: [0, 0.5, 1],
+                  outputRange: index % 2 === 0 ? [0.35, 1, 0.35] : [1, 0.3, 1],
+                }),
+              },
+            ]}
+          />
+        ))}
+        <View style={[styles.backgroundLine, styles.backgroundLineOne]} />
+        <View style={[styles.backgroundLine, styles.backgroundLineTwo]} />
+        <View style={[styles.backgroundLine, styles.backgroundLineThree]} />
+      </View>
       <ScrollView
         contentContainerStyle={styles.content}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        <View style={styles.ambientOrb} />
+        <Animated.View
+          style={[
+            styles.pageContent,
+            {
+              opacity: entrance,
+              transform: [{ translateY: entrance.interpolate({ inputRange: [0, 1], outputRange: [24, 0] }) }],
+            },
+          ]}
+        >
         <View style={styles.brandRow}>
           <View style={styles.logo}>
             <Text style={styles.logoMark}>♔</Text>
@@ -82,7 +153,12 @@ export default function AuthScreen({ navigation }: Props) {
           </Text>
         </View>
 
-        <View style={styles.formCard}>
+        <Animated.View
+          style={[
+            styles.formCard,
+            { transform: [{ scale: entrance.interpolate({ inputRange: [0, 1], outputRange: [0.97, 1] }) }] },
+          ]}
+        >
           <View style={styles.modeSwitch}>
             <TouchableOpacity
               style={[styles.modeOption, !isSignup && styles.modeOptionActive]}
@@ -164,7 +240,7 @@ export default function AuthScreen({ navigation }: Props) {
           </TouchableOpacity>
 
           {!isSignup && <Text style={styles.forgotText}>Esqueceu sua senha?</Text>}
-        </View>
+        </Animated.View>
 
         <View style={styles.dividerRow}>
           <View style={styles.divider} />
@@ -172,16 +248,26 @@ export default function AuthScreen({ navigation }: Props) {
           <View style={styles.divider} />
         </View>
 
-        <TouchableOpacity style={styles.guestButton} activeOpacity={0.85} onPress={() => navigation.replace('Home')}>
-          <Ionicons name="glasses-outline" size={19} color="#b9f27c" />
-          <View style={styles.guestCopy}>
-            <Text style={styles.guestTitle}>Entrar sem cadastro</Text>
-            <Text style={styles.guestSubtitle}>Explore o app como visitante</Text>
-          </View>
-          <Ionicons name="chevron-forward" size={18} color="#77716b" />
-        </TouchableOpacity>
+        <Animated.View
+          style={[
+            styles.guestPulseWrap,
+            {
+              transform: [{ scale: guestPulse.interpolate({ inputRange: [0, 1], outputRange: [1, 1.018] }) }],
+            },
+          ]}
+        >
+          <TouchableOpacity style={styles.guestButton} activeOpacity={0.85} onPress={() => navigation.replace('Home')}>
+            <Ionicons name="glasses-outline" size={19} color="#b9f27c" />
+            <View style={styles.guestCopy}>
+              <Text style={styles.guestTitle}>Entrar sem cadastro</Text>
+              <Text style={styles.guestSubtitle}>Explore o app como visitante</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color="#77716b" />
+          </TouchableOpacity>
+        </Animated.View>
 
         <Text style={styles.legalText}>Ao continuar, você concorda com os termos de uso do WinXadrez.</Text>
+        </Animated.View>
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -192,20 +278,53 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#171614',
   },
+  astralBackground: {
+    ...StyleSheet.absoluteFill,
+    opacity: 0.9,
+    zIndex: 0,
+  },
+  backgroundStar: {
+    position: 'absolute',
+    width: 3,
+    height: 3,
+    borderRadius: 2,
+    backgroundColor: '#f0ffd9',
+    shadowColor: '#b9f27c',
+    shadowOpacity: 1,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 0 },
+  },
+  backgroundLine: {
+    position: 'absolute',
+    height: 1,
+    backgroundColor: 'rgba(185,242,124,0.28)',
+  },
+  backgroundLineOne: {
+    width: 160,
+    left: '10%',
+    top: '18%',
+    transform: [{ rotate: '24deg' }],
+  },
+  backgroundLineTwo: {
+    width: 210,
+    right: '-8%',
+    top: '38%',
+    transform: [{ rotate: '-28deg' }],
+  },
+  backgroundLineThree: {
+    width: 180,
+    left: '-12%',
+    top: '73%',
+    transform: [{ rotate: '-18deg' }],
+  },
   content: {
     flexGrow: 1,
     paddingHorizontal: 22,
     paddingTop: 34,
     paddingBottom: 24,
   },
-  ambientOrb: {
-    position: 'absolute',
-    top: -130,
-    right: -100,
-    width: 280,
-    height: 280,
-    borderRadius: 140,
-    backgroundColor: 'rgba(129,182,76,0.08)',
+  pageContent: {
+    flex: 1,
   },
   brandRow: {
     flexDirection: 'row',
@@ -374,6 +493,13 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(129,182,76,0.24)',
     padding: 14,
+  },
+  guestPulseWrap: {
+    shadowColor: '#81b64c',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.18,
+    shadowRadius: 10,
+    elevation: 3,
   },
   guestCopy: {
     flex: 1,
