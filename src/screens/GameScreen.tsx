@@ -444,15 +444,17 @@ export default function GameScreen({ navigation }: Props) {
         const winner = currentGame.turn() === 'w' ? 'b' : 'w';
         const isWin = winner === 'w';
 
-        recordMatchResult(isWin ? 'Vitória' : 'Derrota', 0, difficulty, totalMoves, botName);
+        const matchRes = recordMatchResult(isWin ? 'Vitória' : 'Derrota', 0, difficulty, totalMoves, botName);
         setLevels(getUserLevels());
+
+        const ptsPrefix = matchRes.pointsEarned >= 0 ? `+${matchRes.pointsEarned}` : `${matchRes.pointsEarned}`;
 
         setGameOverModal({
           visible: true,
           title: isWin ? 'Vitória por Xeque-mate!' : 'Derrota por Xeque-mate',
           description: isWin
-            ? `Parabéns! Você venceu ${botName} no modo ${difficulty} e pontuou rumo ao próximo nível!`
-            : `${botName} aplicou um xeque-mate. Analise a partida e tente novamente!`,
+            ? `Parabéns! Você venceu ${botName} no nível ${difficulty}!\n${ptsPrefix} Pontos • Posição #${matchRes.userRank} no Ranking (${matchRes.userPoints} pts).`
+            : `${botName} aplicou um xeque-mate.\n${ptsPrefix} Pontos • Posição #${matchRes.userRank} no Ranking (${matchRes.userPoints} pts). O ranking geral foi atualizado!`,
           isWin,
         });
       } else if (currentGame.isDraw()) {
@@ -461,13 +463,14 @@ export default function GameScreen({ navigation }: Props) {
         else if (currentGame.isThreefoldRepetition()) desc = 'Empate por repetição tripla de lances.';
         else if (currentGame.isInsufficientMaterial()) desc = 'Empate por material insuficiente.';
 
-        recordMatchResult('Empate', 0, difficulty, totalMoves, botName);
+        const matchRes = recordMatchResult('Empate', 0, difficulty, totalMoves, botName);
         setLevels(getUserLevels());
+        const ptsPrefix = matchRes.pointsEarned >= 0 ? `+${matchRes.pointsEarned}` : `${matchRes.pointsEarned}`;
 
         setGameOverModal({
           visible: true,
           title: 'Empate!',
-          description: desc,
+          description: `${desc}\n${ptsPrefix} Pontos • Posição #${matchRes.userRank} no Ranking (${matchRes.userPoints} pts).`,
           isWin: false,
         });
       }
@@ -761,12 +764,12 @@ export default function GameScreen({ navigation }: Props) {
             matchRecordedRef.current = true;
             clearActiveMatch();
             cancelGameNotifications();
-            recordMatchResult('Derrota', 0, difficulty, game.history().length, botName);
+            const matchRes = recordMatchResult('Derrota', 0, difficulty, game.history().length, botName);
             setLevels(getUserLevels());
             setGameOverModal({
               visible: true,
               title: 'Partida Abandonada',
-              description: `Você desistiu do confronto contra ${botName}.`,
+              description: `Você desistiu do confronto contra ${botName}.\n${matchRes.pointsEarned} Pontos • Posição #${matchRes.userRank} no Ranking (${matchRes.userPoints} pts).`,
               isWin: false,
             });
           },

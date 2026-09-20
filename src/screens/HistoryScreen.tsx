@@ -35,7 +35,7 @@ export default function HistoryScreen({ navigation }: Props) {
   const matchesCount = profile?.matches_count ?? 0;
   const winsCount = profile?.wins_count ?? 0;
   const winPercent = matchesCount > 0 ? Math.round((winsCount / matchesCount) * 100) : 0;
-  const rating = profile?.rating ?? 1200;
+  const points = profile?.rating ?? 0;
 
   return (
     <ScrollView
@@ -59,9 +59,9 @@ export default function HistoryScreen({ navigation }: Props) {
       <View style={[styles.overviewCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
         <View style={styles.overviewTop}>
           <View>
-            <Text style={[styles.overviewLabel, { color: colors.textSecondary }]}>Rating Atual</Text>
+            <Text style={[styles.overviewLabel, { color: colors.textSecondary }]}>Pontos no Ranking</Text>
             <Text style={[styles.overviewValue, { color: colors.text }]}>
-              {rating} <Text style={[styles.overviewUnit, { color: colors.accent }]}>Elo</Text>
+              {points} <Text style={[styles.overviewUnit, { color: colors.accent }]}>Pontos</Text>
             </Text>
           </View>
           <View style={[styles.trendBadge, { backgroundColor: `${colors.primary}18` }]}>
@@ -117,7 +117,7 @@ export default function HistoryScreen({ navigation }: Props) {
           <Ionicons name="file-tray-outline" size={38} color={colors.textSecondary} />
           <Text style={[styles.emptyTitle, { color: colors.text }]}>Nenhuma partida registrada</Text>
           <Text style={[styles.emptySub, { color: colors.textSecondary }]}>
-            Ao jogar contra o Bot no tabuleiro, todos os seus resultados e variações de Elo aparecerão aqui!
+            Ao jogar contra o Bot no tabuleiro, todos os seus resultados e variações de Pontos aparecerão aqui!
           </Text>
           <TouchableOpacity
             style={[styles.emptyButton, { backgroundColor: colors.primary }]}
@@ -169,7 +169,7 @@ export default function HistoryScreen({ navigation }: Props) {
                       { color: item.rating_change >= 0 ? colors.primary : colors.danger },
                     ]}
                   >
-                    {item.rating_change >= 0 ? `+${item.rating_change}` : item.rating_change} Elo
+                    {item.rating_change >= 0 ? `+${item.rating_change}` : item.rating_change} Pontos
                   </Text>
                 </View>
               </View>

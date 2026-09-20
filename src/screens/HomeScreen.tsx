@@ -30,7 +30,7 @@ const navItems: NavItem[] = [
   { title: 'Partida', subtitle: 'Jogar vs Bot', screen: 'Game', icon: 'game-controller', color: '#81b64c' },
   { title: 'Puzzle', subtitle: 'Desafios diários', screen: 'Puzzle', icon: 'extension-puzzle', color: '#f7b267' },
   { title: 'Histórico', subtitle: 'Resultados recentes', screen: 'History', icon: 'time', color: '#5fa8ff' },
-  { title: 'Ranking', subtitle: 'Top da semana', screen: 'Leaderboard', icon: 'trophy', color: '#f7d36d' },
+  { title: 'Ranking', subtitle: '1.000 Jogadores', screen: 'Leaderboard', icon: 'trophy', color: '#f7d36d' },
   { title: 'Perfil', subtitle: 'Estatísticas reais', screen: 'Profile', icon: 'person', color: '#9b8cff' },
 ];
 
@@ -303,9 +303,9 @@ export default function HomeScreen({ navigation }: Props) {
         </View>
         <View style={styles.statCard}>
           <Text style={[styles.statValue, { color: colors.accent }]}>
-            {profile ? profile.rating : 1200}
+            {profile ? profile.rating : 0}
           </Text>
-          <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Rating Elo</Text>
+          <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Pontos</Text>
         </View>
       </View>
 
