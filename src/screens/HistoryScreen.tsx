@@ -47,7 +47,7 @@ export default function HistoryScreen({ navigation }: Props) {
           <Text style={[styles.eyebrow, { color: colors.primary }]}>Desempenho</Text>
           <Text style={[styles.title, { color: colors.text }]}>Histórico de Jogos</Text>
           <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
-            Partidas registradas.
+            Partidas registradas
           </Text>
         </View>
         <View style={[styles.headerIcon, { backgroundColor: `${colors.primary}22` }]}>
