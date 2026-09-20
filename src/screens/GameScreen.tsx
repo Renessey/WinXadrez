@@ -1,46 +1,72 @@
-import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import React, { useMemo, useState } from 'react';
+import { Alert, View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
+import { Chess, Color, Square } from 'chess.js';
 import { RootStackParamList } from '../types/navigation';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Game'>;
 
-const boardRows = Array.from({ length: 8 }, (_, rowIndex) =>
-  Array.from({ length: 8 }, (_, colIndex) => {
-    const isDark = (rowIndex + colIndex) % 2 === 1;
-    const piece =
-      rowIndex === 1
-        ? '♟'
-        : rowIndex === 6
-          ? '♙'
-          : rowIndex === 0 && (colIndex === 0 || colIndex === 7)
-            ? '♜'
-            : rowIndex === 0 && (colIndex === 1 || colIndex === 6)
-              ? '♞'
-              : rowIndex === 0 && (colIndex === 2 || colIndex === 5)
-                ? '♝'
-                : rowIndex === 0 && colIndex === 3
-                  ? '♛'
-                  : rowIndex === 0 && colIndex === 4
-                    ? '♚'
-                    : rowIndex === 7 && (colIndex === 0 || colIndex === 7)
-                      ? '♖'
-                      : rowIndex === 7 && (colIndex === 1 || colIndex === 6)
-                        ? '♘'
-                        : rowIndex === 7 && (colIndex === 2 || colIndex === 5)
-                          ? '♗'
-                          : rowIndex === 7 && colIndex === 3
-                            ? '♕'
-                            : rowIndex === 7 && colIndex === 4
-                              ? '♔'
-                              : '';
-
-    return { isDark, piece };
-  })
-);
+const files = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
+const pieceSymbols: Record<Color, Record<string, string>> = {
+  w: { p: '♙', n: '♘', b: '♗', r: '♖', q: '♕', k: '♔' },
+  b: { p: '♟', n: '♞', b: '♝', r: '♜', q: '♛', k: '♚' },
+};
 
 export default function GameScreen({ navigation }: Props) {
+  const [game, setGame] = useState(() => new Chess());
+  const [fen, setFen] = useState(game.fen());
+  const [selectedSquare, setSelectedSquare] = useState<Square | null>(null);
+  const [lastMove, setLastMove] = useState<{ from: Square; to: Square } | null>(null);
+  const [errorMessage, setErrorMessage] = useState('');
+
+  const board = useMemo(() => game.board(), [fen, game]);
+  const legalTargets = useMemo(
+    () => selectedSquare ? game.moves({ square: selectedSquare, verbose: true }).map((move) => move.to) : [],
+    [selectedSquare, fen, game],
+  );
+
+  const resetGame = () => {
+    const nextGame = new Chess();
+    setGame(nextGame);
+    setFen(nextGame.fen());
+    setSelectedSquare(null);
+    setLastMove(null);
+    setErrorMessage('');
+  };
+
+  const handleSquarePress = (square: Square) => {
+    setErrorMessage('');
+    const piece = game.get(square);
+
+    if (selectedSquare && legalTargets.includes(square)) {
+      try {
+        const move = game.move({ from: selectedSquare, to: square, promotion: 'q' });
+        setFen(game.fen());
+        setLastMove({ from: move.from as Square, to: move.to as Square });
+        setSelectedSquare(null);
+        return;
+      } catch {
+        setErrorMessage('Esse movimento não é válido.');
+        return;
+      }
+    }
+
+    if (piece && piece.color === game.turn()) {
+      setSelectedSquare(square);
+    } else {
+      setSelectedSquare(null);
+    }
+  };
+
+  const gameStatus = game.isCheckmate()
+    ? `Xeque-mate. ${game.turn() === 'w' ? 'Pretas' : 'Brancas'} venceram.`
+    : game.isDraw()
+      ? 'Empate. A partida terminou.'
+      : game.isCheck()
+        ? `Xeque nas ${game.turn() === 'w' ? 'brancas' : 'pretas'}.`
+        : `Vez das ${game.turn() === 'w' ? 'brancas' : 'pretas'}`;
+
   return (
     <View style={styles.container}>
       <View style={styles.topBar}>
@@ -49,9 +75,9 @@ export default function GameScreen({ navigation }: Props) {
           <Text style={styles.playerElo}>Elo 1450</Text>
         </View>
 
-        <View style={styles.timerBox}>
+        <View style={[styles.timerBox, game.isCheck() && styles.timerBoxAlert]}>
           <Ionicons name="time" size={16} color="#f7d36d" />
-          <Text style={styles.timerText}>10:42</Text>
+          <Text style={styles.timerText}>{gameStatus}</Text>
         </View>
 
         <View style={styles.playerInfoRight}>
@@ -62,31 +88,55 @@ export default function GameScreen({ navigation }: Props) {
 
       <View style={styles.boardArea}>
         <View style={styles.boardWrapper}>
-          {boardRows.map((row, rowIndex) => (
+          {board.map((row, rowIndex) => (
             <View key={`row-${rowIndex}`} style={styles.row}>
-              {row.map((cell, colIndex) => (
-                <View
+              {row.map((piece, colIndex) => {
+                const square = `${files[colIndex]}${8 - rowIndex}` as Square;
+                const isDark = (rowIndex + colIndex) % 2 === 1;
+                const isSelected = selectedSquare === square;
+                const isTarget = legalTargets.includes(square);
+                const isLastMove = lastMove?.from === square || lastMove?.to === square;
+
+                return <TouchableOpacity
                   key={`cell-${rowIndex}-${colIndex}`}
                   style={[
                     styles.cell,
-                    cell.isDark ? styles.darkCell : styles.lightCell,
+                    isDark ? styles.darkCell : styles.lightCell,
+                    isLastMove && styles.lastMoveCell,
+                    isSelected && styles.selectedCell,
                   ]}
+                  activeOpacity={0.8}
+                  onPress={() => handleSquarePress(square)}
                 >
-                  {cell.piece ? <Text style={styles.piece}>{cell.piece}</Text> : null}
-                </View>
-              ))}
+                  {isTarget && <View style={piece ? styles.captureTarget : styles.moveTarget} />}
+                  {piece ? <Text style={[styles.piece, piece.color === 'b' ? styles.blackPiece : styles.whitePiece]}>{pieceSymbols[piece.color][piece.type]}</Text> : null}
+                </TouchableOpacity>;
+              })}
             </View>
           ))}
         </View>
       </View>
 
+      <View style={styles.statusBar}>
+        <View style={styles.statusDot} />
+        <Text style={styles.statusText}>{gameStatus}</Text>
+        {errorMessage ? <Text style={styles.errorText}>{errorMessage}</Text> : null}
+      </View>
+
       <View style={styles.actionBar}>
-        <TouchableOpacity style={styles.actionButtonSecondary} activeOpacity={0.8}>
+        <TouchableOpacity
+          style={styles.actionButtonSecondary}
+          activeOpacity={0.8}
+          onPress={() => Alert.alert('Abandonar partida?', 'Você poderá iniciar uma nova partida depois.', [
+            { text: 'Continuar jogando', style: 'cancel' },
+            { text: 'Abandonar', style: 'destructive', onPress: resetGame },
+          ])}
+        >
           <Ionicons name="flag" size={18} color="#ffffff" />
           <Text style={styles.actionText}>Abandonar</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.actionButtonPrimary} activeOpacity={0.8}>
+        <TouchableOpacity style={styles.actionButtonPrimary} activeOpacity={0.8} onPress={resetGame}>
           <Ionicons name="shuffle" size={18} color="#ffffff" />
           <Text style={styles.actionText}>Nova partida</Text>
         </TouchableOpacity>
@@ -149,7 +199,7 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   timerBox: {
-    width: 88,
+    width: 112,
     height: 54,
     borderRadius: 14,
     backgroundColor: '#201f1d',
@@ -163,7 +213,12 @@ const styles = StyleSheet.create({
   timerText: {
     color: '#f7d36d',
     fontWeight: '800',
-    fontSize: 15,
+    fontSize: 10,
+    textAlign: 'center',
+    maxWidth: 82,
+  },
+  timerBoxAlert: {
+    borderColor: 'rgba(255,107,107,0.5)',
   },
   boardArea: {
     flex: 1,
@@ -195,6 +250,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  lastMoveCell: {
+    backgroundColor: '#c9b458',
+  },
+  selectedCell: {
+    backgroundColor: '#81b64c',
+  },
   lightCell: {
     backgroundColor: '#f0d9b5',
   },
@@ -206,6 +267,59 @@ const styles = StyleSheet.create({
     lineHeight: 28,
     color: '#111111',
     textAlign: 'center',
+  },
+  blackPiece: {
+    color: '#151311',
+    textShadowColor: 'rgba(255,255,255,0.18)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 1,
+  },
+  whitePiece: {
+    color: '#fffaf0',
+    textShadowColor: 'rgba(0,0,0,0.45)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
+  },
+  moveTarget: {
+    position: 'absolute',
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: 'rgba(40,40,35,0.38)',
+  },
+  captureTarget: {
+    position: 'absolute',
+    top: 4,
+    right: 4,
+    bottom: 4,
+    left: 4,
+    borderRadius: 999,
+    borderWidth: 4,
+    borderColor: 'rgba(40,40,35,0.35)',
+  },
+  statusBar: {
+    minHeight: 32,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+    paddingHorizontal: 4,
+    marginTop: 2,
+  },
+  statusDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+    backgroundColor: '#81b64c',
+  },
+  statusText: {
+    flex: 1,
+    color: '#c5c0bb',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  errorText: {
+    color: '#ff8c8c',
+    fontSize: 10,
   },
   actionBar: {
     flexDirection: 'row',
