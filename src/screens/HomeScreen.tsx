@@ -24,10 +24,12 @@ interface NavItem {
   screen: keyof RootStackParamList;
   icon: keyof typeof Ionicons.glyphMap;
   color: string;
+  mode?: 'bot' | 'pvp';
 }
 
 const navItems: NavItem[] = [
-  { title: 'Partida', subtitle: 'Jogar vs Bot', screen: 'Game', icon: 'game-controller', color: '#81b64c' },
+  { title: 'Partida', subtitle: 'Jogar vs Bot', screen: 'Game', icon: 'game-controller', color: '#81b64c', mode: 'bot' },
+  { title: 'Jogar contra', subtitle: 'Contra um amigo (2 Jogadores)', screen: 'Game', icon: 'people', color: '#38bdf8', mode: 'pvp' },
   { title: 'Puzzle', subtitle: 'Desafios diários', screen: 'Puzzle', icon: 'extension-puzzle', color: '#f7b267' },
   { title: 'Histórico', subtitle: 'Resultados recentes', screen: 'History', icon: 'time', color: '#5fa8ff' },
   { title: 'Ranking', subtitle: '1.000 Jogadores', screen: 'Leaderboard', icon: 'trophy', color: '#f7d36d' },
@@ -52,6 +54,7 @@ export default function HomeScreen({ navigation }: Props) {
   const [showTutorial, setShowTutorial] = useState(false);
   const [playerName, setPlayerName] = useState('');
   const [selectedLevel, setSelectedLevel] = useState<SkillLevel>('Sei o básico');
+  const [pendingMode, setPendingMode] = useState<'bot' | 'pvp'>('bot');
 
   const pulse = useRef(new Animated.Value(0)).current;
   const orbTravel = useRef(new Animated.Value(0)).current;
@@ -108,14 +111,15 @@ export default function HomeScreen({ navigation }: Props) {
     return () => animation.stop();
   }, [explosion, orbTravel]);
 
-  const handleStartGamePress = () => {
+  const handleStartGamePress = (targetMode: 'bot' | 'pvp' = 'bot') => {
     const currentProfile = getProfile();
     if (!currentProfile) {
       setPlayerName('');
       setSelectedLevel('Sei o básico');
+      setPendingMode(targetMode);
       setShowOnboarding(true);
     } else {
-      navigation.navigate('Game');
+      navigation.navigate('Game', { mode: targetMode });
     }
   };
 
@@ -136,7 +140,7 @@ export default function HomeScreen({ navigation }: Props) {
     const newProfile = createProfile(trimmed, selectedLevel);
     setProfile(newProfile);
     setShowOnboarding(false);
-    navigation.navigate('Game');
+    navigation.navigate('Game', { mode: pendingMode });
   };
 
   const winRate =
@@ -270,7 +274,7 @@ export default function HomeScreen({ navigation }: Props) {
               <TouchableOpacity
                 style={[styles.primaryButton, { backgroundColor: colors.primary }]}
                 activeOpacity={0.9}
-                onPress={handleStartGamePress}
+                onPress={() => handleStartGamePress('bot')}
               >
                 <Ionicons name="play" size={18} color="#ffffff" />
                 <Text style={styles.primaryButtonText}>Jogar</Text>
@@ -317,12 +321,12 @@ export default function HomeScreen({ navigation }: Props) {
       <View style={styles.list}>
         {navItems.map((item) => (
           <TouchableOpacity
-            key={item.screen}
+            key={item.title}
             style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}
             activeOpacity={0.9}
             onPress={() => {
               if (item.screen === 'Game') {
-                handleStartGamePress();
+                handleStartGamePress(item.mode ?? 'bot');
               } else {
                 navigation.navigate(item.screen);
               }

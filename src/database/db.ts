@@ -663,6 +663,7 @@ export interface ActiveMatchState {
   lastMove: { from: string; to: string } | null;
   historyLength: number;
   opponentName?: string;
+  gameMode?: 'bot' | 'pvp';
 }
 
 export function saveActiveMatch(state: ActiveMatchState): void {

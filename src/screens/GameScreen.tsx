@@ -138,10 +138,15 @@ const SquareCell = React.memo(function SquareCell({
   );
 });
 
-export default function GameScreen({ navigation }: Props) {
+export default function GameScreen({ navigation, route }: Props) {
   const { colors, mode } = useAppTheme();
   const insets = useSafeAreaInsets();
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
+
+  const initialMode: 'bot' | 'pvp' = route.params?.mode === 'pvp' ? 'pvp' : 'bot';
+  const [gameMode, setGameMode] = useState<'bot' | 'pvp'>(initialMode);
+  const gameModeRef = useRef(gameMode);
+  gameModeRef.current = gameMode;
 
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [levels, setLevels] = useState<UserLevelsSummary>(() => getUserLevels());
@@ -205,6 +210,14 @@ export default function GameScreen({ navigation }: Props) {
 
   const matchRecordedRef = useRef(false);
 
+  // Sincroniza se o modo mudar pela rota
+  useEffect(() => {
+    if (route.params?.mode && route.params.mode !== gameMode) {
+      setGameMode(route.params.mode);
+      resetGame(route.params.mode);
+    }
+  }, [route.params?.mode]);
+
   // Cálculo responsivo do tabuleiro com precisão exata por casa (sem desvios subpixel)
   const reservedVerticalSpace = insets.top + insets.bottom + 46 + 58 + 58 + 48 + 28;
   const maxBoardHeight = windowHeight - reservedVerticalSpace;
@@ -233,7 +246,7 @@ export default function GameScreen({ navigation }: Props) {
 
   // Save active match state whenever moves or clocks change, or on unmount
   useEffect(() => {
-    if (!game.isGameOver() && game.history().length > 0 && !matchRecordedRef.current) {
+    if (gameMode === 'bot' && !game.isGameOver() && game.history().length > 0 && !matchRecordedRef.current) {
       saveActiveMatch({
         fen: game.fen(),
         whiteTime,
@@ -242,9 +255,10 @@ export default function GameScreen({ navigation }: Props) {
         lastMove: lastMove ? { from: lastMove.from, to: lastMove.to } : null,
         historyLength: game.history().length,
         opponentName: botName,
+        gameMode,
       });
     }
-  }, [fen, whiteTime, blackTime, difficulty, lastMove, botName]);
+  }, [fen, whiteTime, blackTime, difficulty, lastMove, botName, gameMode]);
 
   // Limpeza ao desmontar tela
   useEffect(() => {
@@ -309,7 +323,7 @@ export default function GameScreen({ navigation }: Props) {
     return { capturedByWhite, capturedByBlack };
   }, [board]);
 
-  const resetGame = () => {
+  const resetGame = (newMode?: 'bot' | 'pvp') => {
     clearActiveMatch();
     cancelGameNotifications();
     const nextGame = new Chess();
@@ -326,6 +340,9 @@ export default function GameScreen({ navigation }: Props) {
     setGameOverModal({ visible: false, title: '', description: '', isWin: false });
     setSettingsModalVisible(false);
     setShowResumeModal(false);
+    if (newMode) {
+      setGameMode(newMode);
+    }
   };
 
   // Resume saved match action
@@ -341,6 +358,7 @@ export default function GameScreen({ navigation }: Props) {
         if (saved.opponentName) setBotName(saved.opponentName);
         if (saved.difficulty) setDifficulty(saved.difficulty);
         if (saved.lastMove) setLastMove(saved.lastMove);
+        if (saved.gameMode) setGameMode(saved.gameMode);
         matchRecordedRef.current = false;
       } catch (err) {
         resetGame();
@@ -440,6 +458,36 @@ export default function GameScreen({ navigation }: Props) {
 
       const totalMoves = currentGame.history().length;
 
+      // No modo Jogar contra (PvP), não altera pontuação ou ranking
+      if (gameModeRef.current === 'pvp') {
+        if (currentGame.isCheckmate()) {
+          const winnerColor = currentGame.turn() === 'w' ? 'b' : 'w';
+          const winnerName =
+            winnerColor === 'w'
+              ? (profile?.name ? `${profile.name} (Brancas)` : 'Brancas')
+              : 'Amigo (Pretas)';
+          setGameOverModal({
+            visible: true,
+            title: `Vitória das ${winnerColor === 'w' ? 'Brancas' : 'Pretas'}!`,
+            description: `Xeque-mate! ${winnerName} venceu o confronto!\n\nModo Jogar Contra (amistoso • sem alteração no ranking).`,
+            isWin: winnerColor === 'w',
+          });
+        } else if (currentGame.isDraw()) {
+          let desc = 'A partida terminou em empate amistoso.';
+          if (currentGame.isStalemate()) desc = 'Empate por afogamento (Stalemate).';
+          else if (currentGame.isThreefoldRepetition()) desc = 'Empate por repetição tripla de lances.';
+          else if (currentGame.isInsufficientMaterial()) desc = 'Empate por material insuficiente.';
+
+          setGameOverModal({
+            visible: true,
+            title: 'Empate Amistoso!',
+            description: `${desc}\n\nModo Jogar Contra (amistoso • sem alteração no ranking).`,
+            isWin: false,
+          });
+        }
+        return;
+      }
+
       if (currentGame.isCheckmate()) {
         const winner = currentGame.turn() === 'w' ? 'b' : 'w';
         const isWin = winner === 'w';
@@ -475,7 +523,7 @@ export default function GameScreen({ navigation }: Props) {
         });
       }
     },
-    [difficulty, botName]
+    [difficulty, botName, profile]
   );
 
   // Deslizamento suave, veloz e contínuo a 60 FPS (curva ergonômica natural e estável)
@@ -578,9 +626,11 @@ export default function GameScreen({ navigation }: Props) {
     (square: Square) => {
       const currentGame = gameRef.current;
       const currentSelected = selectedSquareRef.current;
+      const currentMode = gameModeRef.current;
+      const currentTurn = currentGame.turn();
 
-      if (isAnimatingRef.current || isBotThinkingRef.current || currentGame.isGameOver()) return;
-      if (currentGame.turn() !== 'w') return;
+      if (isAnimatingRef.current || currentGame.isGameOver()) return;
+      if (currentMode === 'bot' && (isBotThinkingRef.current || currentTurn !== 'w')) return;
 
       if (currentSelected) {
         if (currentSelected === square) {
@@ -589,7 +639,7 @@ export default function GameScreen({ navigation }: Props) {
         }
 
         const friendlyPiece = currentGame.get(square);
-        if (friendlyPiece && friendlyPiece.color === 'w') {
+        if (friendlyPiece && friendlyPiece.color === currentTurn) {
           setSelectedSquare(square);
           return;
         }
@@ -605,18 +655,32 @@ export default function GameScreen({ navigation }: Props) {
           const fromSq = currentSelected;
           setSelectedSquare(null);
 
-          // Animate user's piece move smoothly at 60 FPS
+          // Animate piece move smoothly at 60 FPS
           animateAndCommitMove(fromSq, square, movingPiece, () => {
             try {
               currentGame.move({ from: fromSq, to: square, promotion: 'q' });
               setFen(currentGame.fen());
               setLastMove({ from: fromSq, to: square });
-              setBlackTime(120); // Reinicia os 2 minutos do bot para o lance dele
 
-              if (!currentGame.isGameOver()) {
-                triggerBotMove(currentGame);
+              if (currentMode === 'bot') {
+                setBlackTime(120); // Reinicia os 2 minutos do bot para o lance dele
+
+                if (!currentGame.isGameOver()) {
+                  triggerBotMove(currentGame);
+                } else {
+                  checkGameOverState(currentGame);
+                }
               } else {
-                checkGameOverState(currentGame);
+                // Modo Jogar Contra (PvP)
+                if (currentTurn === 'w') {
+                  setBlackTime(120);
+                } else {
+                  setWhiteTime(120);
+                }
+
+                if (currentGame.isGameOver()) {
+                  checkGameOverState(currentGame);
+                }
               }
             } catch {
               setSelectedSquare(null);
@@ -630,23 +694,33 @@ export default function GameScreen({ navigation }: Props) {
       }
 
       const piece = currentGame.get(square);
-      if (piece && piece.color === 'w') {
+      if (piece && piece.color === currentTurn) {
         setSelectedSquare(square);
       }
     },
-    [squareSize]
+    [squareSize, triggerBotMove, checkGameOverState]
   );
 
   // Se passar 120 segundos, passa a vez
   const handlePassTurn = useCallback((currentTurn: Color) => {
-    if (game.isGameOver() || isBotThinking) return;
+    const currentMode = gameModeRef.current;
+    if (game.isGameOver()) return;
+    if (currentMode === 'bot' && isBotThinking) return;
 
     const nextTurn = currentTurn === 'w' ? 'b' : 'w';
-    setTurnNotice(
-      currentTurn === 'w'
-        ? `120s esgotados! Vez passada para ${botName}.`
-        : '120s esgotados! Sua vez de jogar.'
-    );
+    if (currentMode === 'bot') {
+      setTurnNotice(
+        currentTurn === 'w'
+          ? `120s esgotados! Vez passada para ${botName}.`
+          : '120s esgotados! Sua vez de jogar.'
+      );
+    } else {
+      setTurnNotice(
+        currentTurn === 'w'
+          ? '120s esgotados! Vez passada para as Pretas (Amigo).'
+          : '120s esgotados! Vez passada para as Brancas.'
+      );
+    }
     setTimeout(() => setTurnNotice(null), 3500);
 
     // Se estiver em xeque, executa um lance defensivo legal para não deixar o rei vulnerável
@@ -659,15 +733,26 @@ export default function GameScreen({ navigation }: Props) {
         setLastMove({ from: autoMove.from, to: autoMove.to });
         setSelectedSquare(null);
 
-        if (currentTurn === 'w') {
-          setBlackTime(120);
-          if (!game.isGameOver()) {
-            triggerBotMove(game);
+        if (currentMode === 'bot') {
+          if (currentTurn === 'w') {
+            setBlackTime(120);
+            if (!game.isGameOver()) {
+              triggerBotMove(game);
+            } else {
+              checkGameOverState(game);
+            }
           } else {
-            checkGameOverState(game);
+            setWhiteTime(120);
           }
         } else {
-          setWhiteTime(120);
+          if (currentTurn === 'w') {
+            setBlackTime(120);
+          } else {
+            setWhiteTime(120);
+          }
+          if (game.isGameOver()) {
+            checkGameOverState(game);
+          }
         }
         return;
       }
@@ -684,15 +769,26 @@ export default function GameScreen({ navigation }: Props) {
       setFen(newFen);
       setSelectedSquare(null);
 
-      if (nextTurn === 'b') {
-        setBlackTime(120);
-        if (!nextGame.isGameOver()) {
-          triggerBotMove(nextGame);
+      if (currentMode === 'bot') {
+        if (nextTurn === 'b') {
+          setBlackTime(120);
+          if (!nextGame.isGameOver()) {
+            triggerBotMove(nextGame);
+          } else {
+            checkGameOverState(nextGame);
+          }
         } else {
-          checkGameOverState(nextGame);
+          setWhiteTime(120);
         }
       } else {
-        setWhiteTime(120);
+        if (nextTurn === 'b') {
+          setBlackTime(120);
+        } else {
+          setWhiteTime(120);
+        }
+        if (nextGame.isGameOver()) {
+          checkGameOverState(nextGame);
+        }
       }
     } catch {
       const legalMoves = game.moves({ verbose: true });
@@ -703,15 +799,26 @@ export default function GameScreen({ navigation }: Props) {
         setLastMove({ from: autoMove.from, to: autoMove.to });
         setSelectedSquare(null);
 
-        if (currentTurn === 'w') {
-          setBlackTime(120);
-          if (!game.isGameOver()) {
-            triggerBotMove(game);
+        if (currentMode === 'bot') {
+          if (currentTurn === 'w') {
+            setBlackTime(120);
+            if (!game.isGameOver()) {
+              triggerBotMove(game);
+            } else {
+              checkGameOverState(game);
+            }
           } else {
-            checkGameOverState(game);
+            setWhiteTime(120);
           }
         } else {
-          setWhiteTime(120);
+          if (currentTurn === 'w') {
+            setBlackTime(120);
+          } else {
+            setWhiteTime(120);
+          }
+          if (game.isGameOver()) {
+            checkGameOverState(game);
+          }
         }
       }
     }
@@ -752,6 +859,43 @@ export default function GameScreen({ navigation }: Props) {
   const handleForfeit = () => {
     if (game.isGameOver() || matchRecordedRef.current) return;
 
+    if (gameMode === 'pvp') {
+      Alert.alert(
+        'Desistir da Partida',
+        'Qual jogador deseja desistir do confronto amistoso?',
+        [
+          { text: 'Cancelar', style: 'cancel' },
+          {
+            text: 'Brancas desistem',
+            onPress: () => {
+              matchRecordedRef.current = true;
+              clearActiveMatch();
+              setGameOverModal({
+                visible: true,
+                title: 'Vitória das Pretas!',
+                description: 'As Brancas desistiram da partida.\n\nModo Jogar Contra (sem alteração no ranking).',
+                isWin: false,
+              });
+            },
+          },
+          {
+            text: 'Pretas desistem',
+            onPress: () => {
+              matchRecordedRef.current = true;
+              clearActiveMatch();
+              setGameOverModal({
+                visible: true,
+                title: 'Vitória das Brancas!',
+                description: 'As Pretas desistiram da partida.\n\nModo Jogar Contra (sem alteração no ranking).',
+                isWin: true,
+              });
+            },
+          },
+        ]
+      );
+      return;
+    }
+
     Alert.alert(
       'Desistir da Partida',
       'Tem certeza de que deseja abandonar este confronto? A partida será considerada uma derrota.',
@@ -782,6 +926,30 @@ export default function GameScreen({ navigation }: Props) {
   const handleOfferDraw = () => {
     if (game.isGameOver() || matchRecordedRef.current) return;
 
+    if (gameMode === 'pvp') {
+      Alert.alert(
+        'Proposta de Empate',
+        'Ambos os jogadores concordam com o empate na partida amistosa?',
+        [
+          { text: 'Não, Continuar', style: 'cancel' },
+          {
+            text: 'Sim, Empatar',
+            onPress: () => {
+              matchRecordedRef.current = true;
+              clearActiveMatch();
+              setGameOverModal({
+                visible: true,
+                title: 'Empate em Comum Acordo!',
+                description: 'Ambos os jogadores concordaram com o empate.\n\nModo Jogar Contra (sem alteração no ranking).',
+                isWin: false,
+              });
+            },
+          },
+        ]
+      );
+      return;
+    }
+
     Alert.alert('Proposta de Empate', `Deseja propor empate a ${botName}?`, [
       { text: 'Voltar', style: 'cancel' },
       {
@@ -808,6 +976,38 @@ export default function GameScreen({ navigation }: Props) {
         },
       },
     ]);
+  };
+
+  const handleToggleMode = () => {
+    if (gameMode === 'bot') {
+      Alert.alert(
+        'Jogar contra um Amigo',
+        'Deseja alternar para o modo Amigo (2 Jogadores)?\n\nCada um terá sua vez de jogar e a partida não influenciará no ranking.',
+        [
+          { text: 'Cancelar', style: 'cancel' },
+          {
+            text: 'Jogar contra Amigo',
+            onPress: () => {
+              resetGame('pvp');
+            },
+          },
+        ]
+      );
+    } else {
+      Alert.alert(
+        'Jogar vs Bot',
+        'Deseja alternar para o modo contra o Bot (Valendo Ranking)?',
+        [
+          { text: 'Cancelar', style: 'cancel' },
+          {
+            text: 'Jogar vs Bot',
+            onPress: () => {
+              resetGame('bot');
+            },
+          },
+        ]
+      );
+    }
   };
 
   const formatTimer = (totalSeconds: number) => {
@@ -838,8 +1038,12 @@ export default function GameScreen({ navigation }: Props) {
         </TouchableOpacity>
 
         <View style={styles.headerCenter}>
-          <Text style={[styles.headerTitle, { color: colors.text }]}>WinXadrez</Text>
-          <Text style={[styles.headerSub, { color: colors.accent }]}>Nível {difficulty}</Text>
+          <Text style={[styles.headerTitle, { color: colors.text }]}>
+            {gameMode === 'pvp' ? 'Jogar contra' : 'WinXadrez'}
+          </Text>
+          <Text style={[styles.headerSub, { color: gameMode === 'pvp' ? '#38bdf8' : colors.accent }]}>
+            {gameMode === 'pvp' ? 'Contra Amigo • Sem Ranking' : `Nível ${difficulty} • Ranking`}
+          </Text>
         </View>
 
         <TouchableOpacity
@@ -851,21 +1055,55 @@ export default function GameScreen({ navigation }: Props) {
         </TouchableOpacity>
       </View>
 
-      {/* 2. Top Player Card (Bot WinXadrez) */}
-      <View style={[styles.playerCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-        <View style={[styles.avatarBox, { backgroundColor: colors.cardSecondary }]}>
-          <Ionicons name="hardware-chip-outline" size={24} color={colors.accent} />
+      {/* 2. Top Player Card (Bot ou Amigo) */}
+      <View
+        style={[
+          styles.playerCard,
+          { backgroundColor: colors.surface, borderColor: colors.border },
+          gameMode === 'pvp' && game.turn() === 'b' && { borderColor: '#38bdf8', borderWidth: 1.5 },
+        ]}
+      >
+        <View
+          style={[
+            styles.avatarBox,
+            { backgroundColor: gameMode === 'pvp' ? '#0284c7' : colors.cardSecondary },
+          ]}
+        >
+          <Ionicons
+            name={gameMode === 'pvp' ? 'person' : 'hardware-chip-outline'}
+            size={24}
+            color={gameMode === 'pvp' ? '#ffffff' : colors.accent}
+          />
         </View>
 
         <View style={styles.playerTextContainer}>
           <Text style={[styles.playerNameText, { color: colors.text }]} numberOfLines={1}>
-            {botName} ({difficulty})
+            {gameMode === 'pvp' ? 'Amigo (Pretas)' : `${botName} (${difficulty})`}
           </Text>
           <View style={styles.playerMetaRow}>
             <Text style={[styles.timerText, { color: colors.text }]}>{formatTimer(blackTime)}</Text>
             <Ionicons name="time-outline" size={13} color={colors.textSecondary} style={{ marginLeft: 6, marginRight: 2 }} />
-            <Text style={[styles.metaSubText, { color: colors.textSecondary }]}>
-              {isBotThinking ? 'Pensando...' : 'Tempo da Vez'}
+            <Text
+              style={[
+                styles.metaSubText,
+                {
+                  color:
+                    gameMode === 'pvp'
+                      ? game.turn() === 'b'
+                        ? '#38bdf8'
+                        : colors.textSecondary
+                      : colors.textSecondary,
+                  fontWeight: gameMode === 'pvp' && game.turn() === 'b' ? '700' : '400',
+                },
+              ]}
+            >
+              {gameMode === 'pvp'
+                ? game.turn() === 'b'
+                  ? 'Sua vez de jogar!'
+                  : 'Aguardando Brancas...'
+                : isBotThinking
+                ? 'Pensando...'
+                : 'Tempo da Vez'}
             </Text>
           </View>
         </View>
@@ -964,8 +1202,14 @@ export default function GameScreen({ navigation }: Props) {
         </View>
       </View>
 
-      {/* 4. Bottom Player Card (Você / Brancas com Nível) */}
-      <View style={[styles.playerCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+      {/* 4. Bottom Player Card (Você / Brancas) */}
+      <View
+        style={[
+          styles.playerCard,
+          { backgroundColor: colors.surface, borderColor: colors.border },
+          gameMode === 'pvp' && game.turn() === 'w' && { borderColor: colors.primary, borderWidth: 1.5 },
+        ]}
+      >
         <View style={[styles.avatarBox, { backgroundColor: colors.primary }]}>
           <Text style={styles.avatarInitial}>
             {profile?.name ? profile.name.charAt(0).toUpperCase() : 'V'}
@@ -979,11 +1223,35 @@ export default function GameScreen({ navigation }: Props) {
           <View style={styles.playerMetaRow}>
             <Text style={[styles.timerText, { color: colors.text }]}>{formatTimer(whiteTime)}</Text>
             <Ionicons name="time-outline" size={13} color={colors.textSecondary} style={{ marginLeft: 6, marginRight: 2 }} />
-            <Text style={[styles.metaSubText, { color: colors.textSecondary }]}>
-              Tempo da Vez • Nível {levels.totalLevel}
+            <Text
+              style={[
+                styles.metaSubText,
+                {
+                  color:
+                    gameMode === 'pvp'
+                      ? game.turn() === 'w'
+                        ? colors.primary
+                        : colors.textSecondary
+                      : colors.textSecondary,
+                  fontWeight: gameMode === 'pvp' && game.turn() === 'w' ? '700' : '400',
+                },
+              ]}
+            >
+              {gameMode === 'pvp'
+                ? game.turn() === 'w'
+                  ? 'Sua vez de jogar!'
+                  : 'Aguardando Pretas...'
+                : `Tempo da Vez • Nível ${levels.totalLevel}`}
             </Text>
             <View style={[styles.diffBadgePill, { backgroundColor: colors.cardSecondary }]}>
-              <Text style={[styles.diffBadgePillText, { color: colors.accent }]}>{difficulty}</Text>
+              <Text
+                style={[
+                  styles.diffBadgePillText,
+                  { color: gameMode === 'pvp' ? '#38bdf8' : colors.accent },
+                ]}
+              >
+                {gameMode === 'pvp' ? 'Amistoso' : difficulty}
+              </Text>
             </View>
           </View>
         </View>
@@ -1007,14 +1275,14 @@ export default function GameScreen({ navigation }: Props) {
         </View>
       </View>
 
-      {/* 5. Bottom Action Bar (Desistir e Empate) */}
+      {/* 5. Bottom Action Bar (Desistir, Empate e Alternar Modo) */}
       <View style={[styles.bottomActionBar, { backgroundColor: colors.surface, borderTopColor: colors.border }]}>
         <TouchableOpacity
           style={styles.bottomActionButton}
           activeOpacity={0.7}
           onPress={handleForfeit}
         >
-          <Ionicons name="flag-outline" size={20} color={colors.danger} />
+          <Ionicons name="flag-outline" size={19} color={colors.danger} />
           <Text style={[styles.bottomActionText, { color: colors.textSecondary }]}>Desistir</Text>
         </TouchableOpacity>
 
@@ -1023,8 +1291,28 @@ export default function GameScreen({ navigation }: Props) {
           activeOpacity={0.7}
           onPress={handleOfferDraw}
         >
-          <Ionicons name="hand-left-outline" size={20} color={colors.accent} />
+          <Ionicons name="hand-left-outline" size={19} color={colors.accent} />
           <Text style={[styles.bottomActionText, { color: colors.textSecondary }]}>Empate</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.bottomActionButton}
+          activeOpacity={0.7}
+          onPress={handleToggleMode}
+        >
+          <Ionicons
+            name={gameMode === 'bot' ? 'people-outline' : 'hardware-chip-outline'}
+            size={19}
+            color={gameMode === 'bot' ? '#38bdf8' : colors.accent}
+          />
+          <Text
+            style={[
+              styles.bottomActionText,
+              { color: gameMode === 'bot' ? '#38bdf8' : colors.accent },
+            ]}
+          >
+            {gameMode === 'bot' ? 'Jogar contra' : 'Modo Bot'}
+          </Text>
         </TouchableOpacity>
       </View>
 
@@ -1059,7 +1347,7 @@ export default function GameScreen({ navigation }: Props) {
               <TouchableOpacity
                 style={[styles.dialogSecondaryBtn, { backgroundColor: colors.cardSecondary, borderColor: colors.border }]}
                 activeOpacity={0.8}
-                onPress={resetGame}
+                onPress={() => resetGame()}
               >
                 <Ionicons name="refresh" size={18} color={colors.text} />
                 <Text style={[styles.dialogSecondaryBtnText, { color: colors.text }]}>
@@ -1087,35 +1375,46 @@ export default function GameScreen({ navigation }: Props) {
               </TouchableOpacity>
             </View>
 
-            <Text style={[styles.settingsLabel, { color: colors.textSecondary }]}>Dificuldade do Bot:</Text>
-            <View style={styles.difficultyPickerRow}>
-              {(['Fácil', 'Médio', 'Difícil'] as GameDifficulty[]).map((d) => (
-                <TouchableOpacity
-                  key={d}
-                  style={[
-                    styles.difficultyOption,
-                    { backgroundColor: colors.cardSecondary, borderColor: colors.border },
-                    difficulty === d && { backgroundColor: colors.primary, borderColor: colors.accent },
-                  ]}
-                  onPress={() => setDifficulty(d)}
-                >
-                  <Text
-                    style={[
-                      styles.difficultyOptionText,
-                      { color: colors.textSecondary },
-                      difficulty === d && { color: '#ffffff' },
-                    ]}
-                  >
-                    {d}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
+            {gameMode === 'bot' ? (
+              <>
+                <Text style={[styles.settingsLabel, { color: colors.textSecondary }]}>Dificuldade do Bot:</Text>
+                <View style={styles.difficultyPickerRow}>
+                  {(['Fácil', 'Médio', 'Difícil'] as GameDifficulty[]).map((d) => (
+                    <TouchableOpacity
+                      key={d}
+                      style={[
+                        styles.difficultyOption,
+                        { backgroundColor: colors.cardSecondary, borderColor: colors.border },
+                        difficulty === d && { backgroundColor: colors.primary, borderColor: colors.accent },
+                      ]}
+                      onPress={() => setDifficulty(d)}
+                    >
+                      <Text
+                        style={[
+                          styles.difficultyOptionText,
+                          { color: colors.textSecondary },
+                          difficulty === d && { color: '#ffffff' },
+                        ]}
+                      >
+                        {d}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </>
+            ) : (
+              <View style={[styles.pvpSettingsNotice, { backgroundColor: 'rgba(56, 189, 248, 0.12)', borderColor: '#38bdf8' }]}>
+                <Ionicons name="people" size={20} color="#38bdf8" />
+                <Text style={[styles.pvpSettingsNoticeText, { color: colors.text }]}>
+                  Modo 2 Jogadores: partida amistosa local entre amigos, sem influenciar seu ranking.
+                </Text>
+              </View>
+            )}
 
             <TouchableOpacity
               style={[styles.restartBtn, { backgroundColor: colors.cardSecondary }]}
               activeOpacity={0.8}
-              onPress={resetGame}
+              onPress={() => resetGame()}
             >
               <Ionicons name="refresh" size={18} color={colors.text} />
               <Text style={[styles.restartBtnText, { color: colors.text }]}>Reiniciar Partida</Text>
@@ -1143,14 +1442,28 @@ export default function GameScreen({ navigation }: Props) {
               {gameOverModal.description}
             </Text>
 
-            <View style={[styles.levelProgressBox, { backgroundColor: colors.cardSecondary, borderColor: colors.border }]}>
-              <Text style={[styles.levelProgressLabel, { color: colors.textSecondary }]}>
-                Seu Nível Geral:
-              </Text>
-              <Text style={[styles.levelProgressValue, { color: colors.accent }]}>
-                Nível {levels.totalLevel}
-              </Text>
-            </View>
+            {gameMode !== 'pvp' ? (
+              <View style={[styles.levelProgressBox, { backgroundColor: colors.cardSecondary, borderColor: colors.border }]}>
+                <Text style={[styles.levelProgressLabel, { color: colors.textSecondary }]}>
+                  Seu Nível Geral:
+                </Text>
+                <Text style={[styles.levelProgressValue, { color: colors.accent }]}>
+                  Nível {levels.totalLevel}
+                </Text>
+              </View>
+            ) : (
+              <View
+                style={[
+                  styles.levelProgressBox,
+                  { backgroundColor: 'rgba(56, 189, 248, 0.15)', borderColor: '#38bdf8' },
+                ]}
+              >
+                <Ionicons name="people" size={16} color="#38bdf8" />
+                <Text style={[styles.levelProgressValue, { color: '#38bdf8' }]}>
+                  Partida Amistosa (Sem Ranking)
+                </Text>
+              </View>
+            )}
 
             <View style={styles.modalButtonsRow}>
               <TouchableOpacity
@@ -1167,7 +1480,7 @@ export default function GameScreen({ navigation }: Props) {
               <TouchableOpacity
                 style={[styles.modalPrimaryBtn, { backgroundColor: colors.primary }]}
                 activeOpacity={0.8}
-                onPress={resetGame}
+                onPress={() => resetGame()}
               >
                 <Text style={styles.modalPrimaryBtnText}>Jogar Novamente</Text>
               </TouchableOpacity>
@@ -1361,19 +1674,34 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-around',
-    paddingHorizontal: 16,
+    paddingHorizontal: 8,
     borderTopWidth: 1,
   },
   bottomActionButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 6,
     paddingVertical: 8,
-    paddingHorizontal: 24,
+    paddingHorizontal: 12,
   },
   bottomActionText: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '700',
+  },
+  pvpSettingsNotice: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginBottom: 20,
+  },
+  pvpSettingsNoticeText: {
+    flex: 1,
+    fontSize: 13,
+    lineHeight: 18,
+    fontWeight: '600',
   },
   turnNoticeBanner: {
     marginHorizontal: 16,
