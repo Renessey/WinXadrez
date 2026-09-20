@@ -103,71 +103,21 @@ export function generate1000RankingBots(): InitialBotPlayer[] {
     seq++;
   }
 
-  // 3. Atribui pontuações realistas de ranking (2950 down to 45 pts)
+  // 3. Todos os 1000 jogadores começam exatamente com 0 pontos conforme solicitado
   const bots: InitialBotPlayer[] = [];
 
   for (let i = 0; i < 1000; i++) {
     const name = nameList[i];
-    const rankPercent = i / 1000; // 0 = topo, 1 = lanterna
-
-    let points: number;
-    let tier: string;
-    let matches: number;
-    let winRate: number;
-
-    if (i < 30) {
-      // Top 30: Grande Mestre
-      points = Math.round(2950 - i * 18 + ((i * 7) % 11));
-      tier = 'Grande Mestre';
-      matches = 140 + (i % 25);
-      winRate = 0.82 - i * 0.003;
-    } else if (i < 100) {
-      // Top 100: Mestre
-      points = Math.round(2410 - (i - 30) * 8 + ((i * 5) % 9));
-      tier = 'Mestre';
-      matches = 100 + (i % 20);
-      winRate = 0.74 - (i - 30) * 0.001;
-    } else if (i < 300) {
-      // Diamante
-      points = Math.round(1850 - (i - 100) * 2.75 + ((i * 3) % 7));
-      tier = 'Diamante';
-      matches = 70 + (i % 18);
-      winRate = 0.65;
-    } else if (i < 650) {
-      // Ouro / Prata
-      points = Math.round(1300 - (i - 300) * 1.8 + ((i * 4) % 6));
-      tier = i < 480 ? 'Ouro' : 'Prata';
-      matches = 45 + (i % 15);
-      winRate = 0.54;
-    } else if (i < 900) {
-      // Bronze
-      points = Math.round(670 - (i - 650) * 1.6 + ((i * 2) % 5));
-      tier = 'Bronze';
-      matches = 25 + (i % 10);
-      winRate = 0.44;
-    } else {
-      // Iniciante
-      points = Math.max(45, Math.round(270 - (i - 900) * 2.2 + (i % 4)));
-      tier = 'Iniciante';
-      matches = 8 + (i % 8);
-      winRate = 0.35;
-    }
-
-    const wins = Math.max(1, Math.round(matches * winRate));
-    const draws = Math.round(matches * 0.08);
-    const losses = Math.max(0, matches - wins - draws);
-
     bots.push({
       name,
-      points,
-      matches,
-      wins,
-      losses,
-      draws,
-      tier,
+      points: 0,
+      matches: 0,
+      wins: 0,
+      losses: 0,
+      draws: 0,
+      tier: 'Iniciante',
     });
   }
 
-  // Ordena por pontos decrescente
-  return bots.sort((a, b) => b.points - a.points);
+  return bots;
 }

@@ -105,6 +105,22 @@ function initDatabase(db: SQLite.SQLiteDatabase): void {
     CREATE INDEX IF NOT EXISTS idx_ranking_points ON ranking_players(points DESC);
   `);
 
+  // Reseta todos os pontos para 0 exatamente uma vez para atender à nova regra
+  try {
+    const hasReset = db.getFirstSync<{ value: string }>(
+      "SELECT value FROM settings WHERE key = 'zero_points_v2'"
+    );
+    if (!hasReset) {
+      db.runSync('DELETE FROM ranking_players');
+      db.runSync('UPDATE profile SET rating = 0');
+      db.runSync(
+        "INSERT INTO settings (key, value) VALUES ('zero_points_v2', 'true') ON CONFLICT(key) DO UPDATE SET value = 'true'"
+      );
+    }
+  } catch {
+    // ignorar
+  }
+
   // Popula os 1000 bots caso a tabela ainda não os tenha
   seedRankingPlayers(db);
 
@@ -275,8 +291,9 @@ export function simulateBotLeagueRound(db?: SQLite.SQLiteDatabase): void {
  * Retorna os jogadores do ranking com filtros otimizados para FlatList
  */
 export function getRanking(
-  filter: 'all' | 'top100' | 'nearUser' = 'top100',
-  search = ''
+  limit = 15,
+  search = '',
+  filter: 'top' | 'nearUser' | 'all' = 'top'
 ): RankingResult {
   try {
     const db = getDatabase();
@@ -326,7 +343,7 @@ export function getRanking(
     if (query.length > 0) {
       const filtered = rankedList.filter((p) => p.name.toLowerCase().includes(query));
       return {
-        players: filtered.slice(0, 100),
+        players: filtered.slice(0, limit),
         userRank,
         userPoints,
         totalPlayers,
@@ -334,19 +351,9 @@ export function getRanking(
     }
 
     // 3. Aplica filtros de exibição
-    if (filter === 'top100') {
-      return {
-        players: rankedList.slice(0, 100),
-        userRank,
-        userPoints,
-        totalPlayers,
-      };
-    }
-
     if (filter === 'nearUser') {
-      // 15 acima e 15 abaixo do jogador
-      const startIdx = Math.max(0, userRank - 16);
-      const endIdx = Math.min(totalPlayers, userRank + 15);
+      const startIdx = Math.max(0, userRank - 8);
+      const endIdx = Math.min(totalPlayers, userRank + 7);
       return {
         players: rankedList.slice(startIdx, endIdx),
         userRank,
@@ -355,9 +362,9 @@ export function getRanking(
       };
     }
 
-    // 'all'
+    // 'top' ou 'all' retornam os primeiros colocados conforme o limite solicitado (ex: 15)
     return {
-      players: rankedList,
+      players: rankedList.slice(0, limit),
       userRank,
       userPoints,
       totalPlayers,

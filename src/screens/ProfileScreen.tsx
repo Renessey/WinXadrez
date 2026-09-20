@@ -9,6 +9,7 @@ import {
   View,
 } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { RootStackParamList } from '../types/navigation';
 import {
@@ -27,6 +28,7 @@ type Props = NativeStackScreenProps<RootStackParamList, 'Profile'>;
 
 export default function ProfileScreen({ navigation }: Props) {
   const { colors, mode, toggleTheme } = useAppTheme();
+  const insets = useSafeAreaInsets();
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [levels, setLevels] = useState<UserLevelsSummary>(() => getUserLevels());
 
@@ -131,10 +133,39 @@ export default function ProfileScreen({ navigation }: Props) {
   ];
 
   return (
-    <ScrollView
-      style={[styles.container, { backgroundColor: colors.background }]}
-      contentContainerStyle={styles.content}
+    <View
+      style={[
+        styles.container,
+        {
+          backgroundColor: colors.background,
+          paddingTop: Math.max(insets.top, 8),
+        },
+      ]}
     >
+      {/* 1. Barra Superior com Botão de Voltar no Canto Superior Esquerdo */}
+      <View style={[styles.topBar, { borderBottomColor: colors.border, paddingHorizontal: 16 }]}>
+        <TouchableOpacity
+          style={styles.backButtonTop}
+          activeOpacity={0.7}
+          onPress={() => navigation.goBack()}
+        >
+          <Ionicons name="arrow-back" size={24} color={colors.text} />
+        </TouchableOpacity>
+
+        <View style={styles.topBarCenter}>
+          <Text style={[styles.topBarTitle, { color: colors.text }]}>Perfil do Jogador</Text>
+          <Text style={[styles.topBarSub, { color: colors.accent }]}>Suas Estatísticas</Text>
+        </View>
+
+        <View style={[styles.topBarIconWrap, { backgroundColor: `${colors.primary}20` }]}>
+          <Ionicons name="person" size={20} color={colors.primary} />
+        </View>
+      </View>
+
+      <ScrollView
+        style={[styles.container, { backgroundColor: colors.background }]}
+        contentContainerStyle={styles.content}
+      >
       {/* Header Profile Card */}
       <View style={[styles.headerCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
         <View style={[styles.avatarWrap, { backgroundColor: colors.primary }]}>
@@ -354,23 +385,47 @@ export default function ProfileScreen({ navigation }: Props) {
           </TouchableOpacity>
         ))}
       </View>
-
-      {/* Back to home button */}
-      <TouchableOpacity
-        style={[styles.backButton, { backgroundColor: colors.surface, borderColor: colors.border }]}
-        activeOpacity={0.7}
-        onPress={() => navigation.goBack()}
-      >
-        <Ionicons name="arrow-back" size={18} color={colors.text} />
-        <Text style={[styles.backButtonText, { color: colors.text }]}>Voltar ao Menu</Text>
-      </TouchableOpacity>
     </ScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+  topBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+  },
+  backButtonTop: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  topBarCenter: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  topBarTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+  },
+  topBarSub: {
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  topBarIconWrap: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   content: {
     padding: 16,

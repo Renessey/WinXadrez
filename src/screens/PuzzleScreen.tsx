@@ -7,6 +7,7 @@ import {
   View,
 } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { RootStackParamList } from '../types/navigation';
 import { useAppTheme } from '../context/ThemeContext';
@@ -22,27 +23,45 @@ const puzzleTypes = [
 
 export default function PuzzleScreen({ navigation }: Props) {
   const { colors } = useAppTheme();
+  const insets = useSafeAreaInsets();
   const [started, setStarted] = useState(false);
   const [selectedPuzzle, setSelectedPuzzle] = useState('mate');
   const activePuzzle = puzzleTypes.find((p) => p.id === selectedPuzzle) ?? puzzleTypes[0];
 
   return (
-    <ScrollView
-      style={[styles.container, { backgroundColor: colors.background }]}
-      contentContainerStyle={styles.content}
+    <View
+      style={[
+        styles.container,
+        {
+          backgroundColor: colors.background,
+          paddingTop: Math.max(insets.top, 8),
+        },
+      ]}
     >
-      <View style={styles.header}>
-        <View>
-          <Text style={[styles.eyebrow, { color: colors.accent }]}>Centro de Treinamento</Text>
-          <Text style={[styles.title, { color: colors.text }]}>Tática Diária</Text>
-          <Text style={[styles.description, { color: colors.textSecondary }]}>
-            Encontre o melhor lance na posição.
-          </Text>
+      {/* 1. Barra Superior com Botão de Voltar no Canto Superior Esquerdo */}
+      <View style={[styles.topBar, { borderBottomColor: colors.border, paddingHorizontal: 16 }]}>
+        <TouchableOpacity
+          style={styles.backButtonTop}
+          activeOpacity={0.7}
+          onPress={() => navigation.goBack()}
+        >
+          <Ionicons name="arrow-back" size={24} color={colors.text} />
+        </TouchableOpacity>
+
+        <View style={styles.topBarCenter}>
+          <Text style={[styles.topBarTitle, { color: colors.text }]}>Tática Diária</Text>
+          <Text style={[styles.topBarSub, { color: colors.accent }]}>Desafios de Puzzles</Text>
         </View>
-        <View style={[styles.headerBadge, { backgroundColor: `${colors.accent}20` }]}>
-          <Ionicons name="extension-puzzle" size={22} color={colors.accent} />
+
+        <View style={[styles.topBarIconWrap, { backgroundColor: `${colors.accent}20` }]}>
+          <Ionicons name="extension-puzzle" size={20} color={colors.accent} />
         </View>
       </View>
+
+      <ScrollView
+        style={[styles.container, { backgroundColor: colors.background }]}
+        contentContainerStyle={styles.content}
+      >
 
       {/* Hero Puzzle Board */}
       <View style={[styles.heroCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
@@ -162,17 +181,8 @@ export default function PuzzleScreen({ navigation }: Props) {
           {started ? 'Resolvendo quebra-cabeça...' : 'Iniciar quebra-cabeça'}
         </Text>
       </TouchableOpacity>
-
-      {/* Back button */}
-      <TouchableOpacity
-        style={[styles.backButton, { backgroundColor: colors.surface, borderColor: colors.border }]}
-        activeOpacity={0.7}
-        onPress={() => navigation.goBack()}
-      >
-        <Ionicons name="arrow-back" size={18} color={colors.text} />
-        <Text style={[styles.backButtonText, { color: colors.text }]}>Voltar ao Menu</Text>
-      </TouchableOpacity>
     </ScrollView>
+    </View>
   );
 }
 
@@ -180,8 +190,41 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
+  topBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+  },
+  backButtonTop: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  topBarCenter: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  topBarTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+  },
+  topBarSub: {
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  topBarIconWrap: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   content: {
-    padding: 18,
+    padding: 16,
     paddingBottom: 32,
   },
   header: {

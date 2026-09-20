@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 import { RootStackParamList } from '../types/navigation';
@@ -15,24 +16,27 @@ import { useAppTheme } from '../context/ThemeContext';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Leaderboard'>;
 
-type FilterTab = 'top100' | 'nearUser' | 'all';
+type FilterTab = 'top' | 'nearUser';
 
 export default function LeaderboardScreen({ navigation }: Props) {
   const { colors } = useAppTheme();
-  const [selectedFilter, setSelectedFilter] = useState<FilterTab>('top100');
+  const insets = useSafeAreaInsets();
+  const [selectedFilter, setSelectedFilter] = useState<FilterTab>('top');
   const [searchQuery, setSearchQuery] = useState('');
+  const [displayLimit, setDisplayLimit] = useState(15);
+
   const [players, setPlayers] = useState<RankingPlayerItem[]>([]);
-  const [userRank, setUserRank] = useState(1000);
+  const [userRank, setUserRank] = useState(1001);
   const [userPoints, setUserPoints] = useState(0);
   const [totalPlayers, setTotalPlayers] = useState(1001);
 
   const loadData = useCallback(() => {
-    const data = getRanking(selectedFilter, searchQuery);
+    const data = getRanking(displayLimit, searchQuery, selectedFilter);
     setPlayers(data.players);
     setUserRank(data.userRank);
     setUserPoints(data.userPoints);
     setTotalPlayers(data.totalPlayers);
-  }, [selectedFilter, searchQuery]);
+  }, [displayLimit, searchQuery, selectedFilter]);
 
   useEffect(() => {
     loadData();
@@ -42,34 +46,38 @@ export default function LeaderboardScreen({ navigation }: Props) {
     return unsub;
   }, [navigation, loadData]);
 
-  // Top 3 do ranking geral
+  const handleLoadMore = () => {
+    setDisplayLimit((prev) => prev + 15);
+  };
+
+  // Top 3 do ranking
   const top1 = players[0] && players[0].rank === 1 ? players[0] : null;
   const top2 = players.find((p) => p.rank === 2) || null;
   const top3 = players.find((p) => p.rank === 3) || null;
 
-  const tabs: { key: FilterTab; label: string; icon: any }[] = [
-    { key: 'top100', label: 'Top 100', icon: 'trophy-outline' },
-    { key: 'nearUser', label: 'Perto de Você', icon: 'person-outline' },
-    { key: 'all', label: 'Geral (1.000)', icon: 'list-outline' },
-  ];
-
   const renderHeader = () => (
     <View style={styles.headerContainer}>
-      {/* Title bar */}
-      <View style={styles.header}>
-        <View style={styles.headerTextGroup}>
-          <Text style={[styles.eyebrow, { color: colors.primary }]}>Liga Global</Text>
-          <Text style={[styles.title, { color: colors.text }]}>Ranking Geral</Text>
-          <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
-            Classificação dinâmica medindo 1.000 jogadores por Pontos.
-          </Text>
+      {/* 1. Barra Superior com Botão de Voltar no Canto Superior Esquerdo */}
+      <View style={[styles.topBar, { borderBottomColor: colors.border }]}>
+        <TouchableOpacity
+          style={styles.backButtonTop}
+          activeOpacity={0.7}
+          onPress={() => navigation.goBack()}
+        >
+          <Ionicons name="arrow-back" size={24} color={colors.text} />
+        </TouchableOpacity>
+
+        <View style={styles.topBarCenter}>
+          <Text style={[styles.topBarTitle, { color: colors.text }]}>Ranking Geral</Text>
+          <Text style={[styles.topBarSub, { color: colors.accent }]}>Liga dos 1.000</Text>
         </View>
-        <View style={[styles.trophyBadge, { backgroundColor: `${colors.accent}20` }]}>
-          <Ionicons name="trophy" size={26} color={colors.accent} />
+
+        <View style={[styles.trophyIconWrap, { backgroundColor: `${colors.accent}20` }]}>
+          <Ionicons name="trophy" size={20} color={colors.accent} />
         </View>
       </View>
 
-      {/* User Position Highlight Card */}
+      {/* 2. Card de Classificação Pessoal do Jogador */}
       <View style={[styles.heroCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
         <View style={styles.heroTopLine}>
           <View>
@@ -84,14 +92,14 @@ export default function LeaderboardScreen({ navigation }: Props) {
           </View>
         </View>
         <Text style={[styles.heroHint, { color: colors.textSecondary }]}>
-          Vença partidas no tabuleiro para somar pontos e subir de posição na tabela!
+          Todos os jogadores começam com 0 pontos. Ganhe partidas para subir posições!
         </Text>
       </View>
 
-      {/* Podium Top 3 (visível na aba Top 100 ou quando não há busca ativa) */}
-      {selectedFilter === 'top100' && !searchQuery.trim() && top1 && (
+      {/* 3. Pódio Top 3 (quando não há busca ativa) */}
+      {!searchQuery.trim() && top1 && (
         <View style={[styles.podiumSection, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-          <Text style={[styles.podiumTitle, { color: colors.text }]}>Líderes da Temporada</Text>
+          <Text style={[styles.podiumTitle, { color: colors.text }]}>Top 3 Líderes</Text>
           <View style={styles.podium}>
             {/* 2nd place */}
             <View style={[styles.podiumCard, styles.second, { backgroundColor: colors.cardSecondary }]}>
@@ -142,42 +150,69 @@ export default function LeaderboardScreen({ navigation }: Props) {
         </View>
       )}
 
-      {/* Tabs Selector */}
+      {/* 4. Abas de Filtro: Líderes vs Perto de Você */}
       <View style={styles.tabSwitcher}>
-        {tabs.map((tab) => (
-          <TouchableOpacity
-            key={tab.key}
+        <TouchableOpacity
+          style={[
+            styles.tabOption,
+            selectedFilter === 'top'
+              ? { backgroundColor: colors.primary }
+              : { backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1 },
+          ]}
+          activeOpacity={0.8}
+          onPress={() => {
+            setSelectedFilter('top');
+            setDisplayLimit(15);
+            setSearchQuery('');
+          }}
+        >
+          <Ionicons
+            name="trophy-outline"
+            size={14}
+            color={selectedFilter === 'top' ? '#ffffff' : colors.textSecondary}
+            style={{ marginRight: 6 }}
+          />
+          <Text
             style={[
-              styles.tabOption,
-              selectedFilter === tab.key
-                ? { backgroundColor: colors.primary }
-                : { backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1 },
+              styles.tabText,
+              { color: selectedFilter === 'top' ? '#ffffff' : colors.textSecondary },
             ]}
-            activeOpacity={0.8}
-            onPress={() => {
-              setSelectedFilter(tab.key);
-              setSearchQuery('');
-            }}
           >
-            <Ionicons
-              name={tab.icon}
-              size={14}
-              color={selectedFilter === tab.key ? '#ffffff' : colors.textSecondary}
-              style={{ marginRight: 4 }}
-            />
-            <Text
-              style={[
-                styles.tabText,
-                { color: selectedFilter === tab.key ? '#ffffff' : colors.textSecondary },
-              ]}
-            >
-              {tab.label}
-            </Text>
-          </TouchableOpacity>
-        ))}
+            Líderes do Ranking
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[
+            styles.tabOption,
+            selectedFilter === 'nearUser'
+              ? { backgroundColor: colors.primary }
+              : { backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1 },
+          ]}
+          activeOpacity={0.8}
+          onPress={() => {
+            setSelectedFilter('nearUser');
+            setSearchQuery('');
+          }}
+        >
+          <Ionicons
+            name="person-outline"
+            size={14}
+            color={selectedFilter === 'nearUser' ? '#ffffff' : colors.textSecondary}
+            style={{ marginRight: 6 }}
+          />
+          <Text
+            style={[
+              styles.tabText,
+              { color: selectedFilter === 'nearUser' ? '#ffffff' : colors.textSecondary },
+            ]}
+          >
+            Perto de Você
+          </Text>
+        </TouchableOpacity>
       </View>
 
-      {/* Search Input Bar */}
+      {/* 5. Campo de Busca */}
       <View style={[styles.searchBox, { backgroundColor: colors.surface, borderColor: colors.border }]}>
         <Ionicons name="search" size={17} color={colors.textSecondary} style={{ marginRight: 8 }} />
         <TextInput
@@ -185,18 +220,29 @@ export default function LeaderboardScreen({ navigation }: Props) {
           placeholder="Buscar jogador ou bot por nome..."
           placeholderTextColor={colors.textMuted}
           value={searchQuery}
-          onChangeText={setSearchQuery}
+          onChangeText={(txt) => {
+            setSearchQuery(txt);
+            if (txt.trim().length > 0) {
+              setDisplayLimit(50);
+            }
+          }}
           autoCapitalize="none"
           autoCorrect={false}
         />
         {searchQuery.length > 0 && (
-          <TouchableOpacity activeOpacity={0.7} onPress={() => setSearchQuery('')}>
+          <TouchableOpacity
+            activeOpacity={0.7}
+            onPress={() => {
+              setSearchQuery('');
+              setDisplayLimit(15);
+            }}
+          >
             <Ionicons name="close-circle" size={18} color={colors.textSecondary} />
           </TouchableOpacity>
         )}
       </View>
 
-      {/* Table Column Labels */}
+      {/* 6. Cabeçalho de Colunas */}
       <View style={[styles.tableHeaderRow, { borderBottomColor: colors.border }]}>
         <Text style={[styles.colHeaderRank, { color: colors.textSecondary }]}>POS.</Text>
         <Text style={[styles.colHeaderPlayer, { color: colors.textSecondary }]}>JOGADOR</Text>
@@ -226,9 +272,9 @@ export default function LeaderboardScreen({ navigation }: Props) {
           styles.rankRow,
           { borderBottomColor: colors.border },
           isUser && {
-            backgroundColor: `${colors.primary}20`,
+            backgroundColor: `${colors.primary}22`,
             borderColor: colors.primary,
-            borderWidth: 1,
+            borderWidth: 1.2,
             borderRadius: 12,
             marginVertical: 2,
           },
@@ -241,7 +287,7 @@ export default function LeaderboardScreen({ navigation }: Props) {
           </Text>
         </View>
 
-        {/* Jogador com Avatar e Tier */}
+        {/* Jogador com Avatar e Info */}
         <View style={styles.playerInfoCol}>
           <View
             style={[
@@ -278,7 +324,7 @@ export default function LeaderboardScreen({ navigation }: Props) {
           </View>
         </View>
 
-        {/* Variação recente da liga */}
+        {/* Variação recente */}
         <View style={styles.changeWrap}>
           {item.position_change > 0 ? (
             <View style={styles.changeBadgeUp}>
@@ -306,21 +352,42 @@ export default function LeaderboardScreen({ navigation }: Props) {
     );
   };
 
-  const renderFooter = () => (
-    <View style={styles.footerContainer}>
-      <TouchableOpacity
-        style={[styles.backButton, { backgroundColor: colors.surface, borderColor: colors.border }]}
-        activeOpacity={0.7}
-        onPress={() => navigation.goBack()}
-      >
-        <Ionicons name="arrow-back" size={18} color={colors.text} />
-        <Text style={[styles.backButtonText, { color: colors.text }]}>Voltar ao Menu</Text>
-      </TouchableOpacity>
-    </View>
-  );
+  const renderFooter = () => {
+    // Botão "Ver Mais" quando houver mais jogadores para exibir
+    const canLoadMore = selectedFilter === 'top' && !searchQuery.trim() && displayLimit < totalPlayers;
+
+    return (
+      <View style={styles.footerContainer}>
+        {canLoadMore && (
+          <TouchableOpacity
+            style={[styles.seeMoreButton, { backgroundColor: colors.surface, borderColor: colors.border }]}
+            activeOpacity={0.8}
+            onPress={handleLoadMore}
+          >
+            <Text style={[styles.seeMoreText, { color: colors.accent }]}>
+              Ver Mais (+15)
+            </Text>
+            <Ionicons name="chevron-down" size={18} color={colors.accent} />
+          </TouchableOpacity>
+        )}
+
+        <Text style={[styles.displayInfoText, { color: colors.textMuted }]}>
+          Exibindo {players.length} de {totalPlayers} participantes
+        </Text>
+      </View>
+    );
+  };
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
+    <View
+      style={[
+        styles.container,
+        {
+          backgroundColor: colors.background,
+          paddingTop: Math.max(insets.top, 8),
+        },
+      ]}
+    >
       <FlatList
         data={players}
         keyExtractor={(item) => String(item.id)}
@@ -328,13 +395,13 @@ export default function LeaderboardScreen({ navigation }: Props) {
         ListHeaderComponent={renderHeader}
         ListFooterComponent={renderFooter}
         contentContainerStyle={styles.listContent}
-        initialNumToRender={20}
-        maxToRenderPerBatch={25}
-        windowSize={10}
+        initialNumToRender={15}
+        maxToRenderPerBatch={15}
+        windowSize={8}
         removeClippedSubviews={true}
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
-            <Ionicons name="search-outline" size={40} color={colors.textSecondary} />
+            <Ionicons name="search-outline" size={38} color={colors.textSecondary} />
             <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
               Nenhum jogador encontrado com "{searchQuery}".
             </Text>
@@ -350,42 +417,43 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   listContent: {
-    padding: 16,
+    paddingHorizontal: 16,
     paddingBottom: 28,
   },
   headerContainer: {
     marginBottom: 8,
   },
-  header: {
+  topBar: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 16,
+    justifyContent: 'space-between',
+    paddingVertical: 12,
+    marginBottom: 12,
+    borderBottomWidth: 1,
   },
-  headerTextGroup: {
+  backButtonTop: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  topBarCenter: {
     flex: 1,
-    marginRight: 10,
+    alignItems: 'center',
   },
-  eyebrow: {
-    fontSize: 11,
+  topBarTitle: {
+    fontSize: 18,
     fontWeight: '800',
-    textTransform: 'uppercase',
-    letterSpacing: 1,
-    marginBottom: 3,
   },
-  title: {
-    fontSize: 24,
-    fontWeight: '900',
-    marginBottom: 3,
+  topBarSub: {
+    fontSize: 11,
+    fontWeight: '700',
   },
-  subtitle: {
-    fontSize: 13,
-    lineHeight: 18,
-  },
-  trophyBadge: {
-    width: 48,
-    height: 48,
-    borderRadius: 16,
+  trophyIconWrap: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -486,7 +554,7 @@ const styles = StyleSheet.create({
   },
   tabSwitcher: {
     flexDirection: 'row',
-    gap: 6,
+    gap: 8,
     marginBottom: 12,
   },
   tabOption: {
@@ -494,8 +562,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 9,
-    borderRadius: 10,
+    paddingVertical: 10,
+    borderRadius: 12,
   },
   tabText: {
     fontSize: 12,
@@ -586,7 +654,7 @@ const styles = StyleSheet.create({
   },
   playerName: {
     fontSize: 13,
-    maxWidth: 120,
+    maxWidth: 130,
   },
   youPill: {
     paddingHorizontal: 6,
@@ -642,21 +710,29 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   footerContainer: {
-    marginTop: 20,
+    marginTop: 14,
     marginBottom: 10,
+    alignItems: 'center',
   },
-  backButton: {
+  seeMoreButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
-    paddingVertical: 13,
+    gap: 6,
+    paddingVertical: 12,
+    paddingHorizontal: 24,
     borderRadius: 14,
     borderWidth: 1,
+    width: '100%',
+    marginBottom: 12,
   },
-  backButtonText: {
+  seeMoreText: {
     fontSize: 14,
-    fontWeight: '700',
+    fontWeight: '800',
+  },
+  displayInfoText: {
+    fontSize: 11,
+    fontWeight: '600',
   },
   emptyContainer: {
     alignItems: 'center',

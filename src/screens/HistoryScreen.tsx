@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 import { RootStackParamList } from '../types/navigation';
@@ -16,6 +17,7 @@ type Props = NativeStackScreenProps<RootStackParamList, 'History'>;
 
 export default function HistoryScreen({ navigation }: Props) {
   const { colors } = useAppTheme();
+  const insets = useSafeAreaInsets();
   const [matches, setMatches] = useState<MatchRecord[]>([]);
   const [profile, setProfile] = useState<UserProfile | null>(null);
 
@@ -38,156 +40,160 @@ export default function HistoryScreen({ navigation }: Props) {
   const points = profile?.rating ?? 0;
 
   return (
-    <ScrollView
-      style={[styles.container, { backgroundColor: colors.background }]}
-      contentContainerStyle={styles.content}
+    <View
+      style={[
+        styles.container,
+        {
+          backgroundColor: colors.background,
+          paddingTop: Math.max(insets.top, 8),
+        },
+      ]}
     >
-      <View style={styles.header}>
-        <View>
-          <Text style={[styles.eyebrow, { color: colors.primary }]}>Desempenho</Text>
-          <Text style={[styles.title, { color: colors.text }]}>Histórico de Jogos</Text>
-          <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
-            Partidas registradas
-          </Text>
+      {/* 1. Barra Superior com Botão de Voltar no Canto Superior Esquerdo */}
+      <View style={[styles.topBar, { borderBottomColor: colors.border, paddingHorizontal: 16 }]}>
+        <TouchableOpacity
+          style={styles.backButtonTop}
+          activeOpacity={0.7}
+          onPress={() => navigation.goBack()}
+        >
+          <Ionicons name="arrow-back" size={24} color={colors.text} />
+        </TouchableOpacity>
+
+        <View style={styles.topBarCenter}>
+          <Text style={[styles.topBarTitle, { color: colors.text }]}>Histórico de Jogos</Text>
+          <Text style={[styles.topBarSub, { color: colors.primary }]}>Suas Partidas</Text>
         </View>
-        <View style={[styles.headerIcon, { backgroundColor: `${colors.primary}22` }]}>
-          <Ionicons name="analytics" size={22} color={colors.primary} />
+
+        <View style={[styles.topBarIconWrap, { backgroundColor: `${colors.primary}20` }]}>
+          <Ionicons name="analytics" size={20} color={colors.primary} />
         </View>
       </View>
 
-      {/* Overview Card */}
-      <View style={[styles.overviewCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-        <View style={styles.overviewTop}>
-          <View>
-            <Text style={[styles.overviewLabel, { color: colors.textSecondary }]}>Pontos no Ranking</Text>
-            <Text style={[styles.overviewValue, { color: colors.text }]}>
-              {points} <Text style={[styles.overviewUnit, { color: colors.accent }]}>Pontos</Text>
+      <ScrollView contentContainerStyle={styles.content}>
+        {/* Overview Card */}
+        <View style={[styles.overviewCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          <View style={styles.overviewTop}>
+            <View>
+              <Text style={[styles.overviewLabel, { color: colors.textSecondary }]}>Pontos no Ranking</Text>
+              <Text style={[styles.overviewValue, { color: colors.text }]}>
+                {points} <Text style={[styles.overviewUnit, { color: colors.accent }]}>Pontos</Text>
+              </Text>
+            </View>
+            <View style={[styles.trendBadge, { backgroundColor: `${colors.primary}18` }]}>
+              <Ionicons name="medal-outline" size={14} color={colors.primary} />
+              <Text style={[styles.trendText, { color: colors.primary }]}>{winPercent}% vitórias</Text>
+            </View>
+          </View>
+
+          <View style={[styles.progressTrack, { backgroundColor: colors.chipBg }]}>
+            <View style={[styles.progressFill, { backgroundColor: colors.primary, width: `${Math.min(winPercent, 100)}%` }]} />
+          </View>
+
+          <View style={styles.overviewFooter}>
+            <Text style={[styles.overviewHint, { color: colors.textSecondary }]}>
+              {matchesCount === 0 ? 'Nenhuma partida jogada ainda' : `${winsCount} vitória(s) em ${matchesCount} confronto(s)`}
             </Text>
-          </View>
-          <View style={[styles.trendBadge, { backgroundColor: `${colors.primary}18` }]}>
-            <Ionicons name="medal-outline" size={14} color={colors.primary} />
-            <Text style={[styles.trendText, { color: colors.primary }]}>{winPercent}% vitórias</Text>
+            <Text style={[styles.overviewPercent, { color: colors.primary }]}>{winPercent}%</Text>
           </View>
         </View>
 
-        <View style={[styles.progressTrack, { backgroundColor: colors.chipBg }]}>
-          <View style={[styles.progressFill, { backgroundColor: colors.primary, width: `${Math.min(winPercent, 100)}%` }]} />
-        </View>
-
-        <View style={styles.overviewFooter}>
-          <Text style={[styles.overviewHint, { color: colors.textSecondary }]}>
-            {matchesCount === 0 ? 'Nenhuma partida jogada ainda' : `${winsCount} vitória(s) em ${matchesCount} confronto(s)`}
-          </Text>
-          <Text style={[styles.overviewPercent, { color: colors.primary }]}>{winPercent}%</Text>
-        </View>
-      </View>
-
-      {/* Summary Counters */}
-      <View style={styles.summaryRow}>
-        <View style={[styles.summaryCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-          <View style={[styles.summaryIcon, { backgroundColor: `${colors.primary}20` }]}>
-            <Ionicons name="game-controller" size={16} color={colors.primary} />
+        {/* Summary Counters */}
+        <View style={styles.summaryRow}>
+          <View style={[styles.summaryCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <View style={[styles.summaryIcon, { backgroundColor: `${colors.primary}20` }]}>
+              <Ionicons name="game-controller" size={16} color={colors.primary} />
+            </View>
+            <Text style={[styles.summaryValue, { color: colors.text }]}>{matchesCount}</Text>
+            <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>Partidas</Text>
           </View>
-          <Text style={[styles.summaryValue, { color: colors.text }]}>{matchesCount}</Text>
-          <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>Partidas</Text>
-        </View>
 
-        <View style={[styles.summaryCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-          <View style={[styles.summaryIcon, { backgroundColor: `${colors.accent}20` }]}>
-            <Ionicons name="pie-chart" size={16} color={colors.accent} />
+          <View style={[styles.summaryCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <View style={[styles.summaryIcon, { backgroundColor: `${colors.accent}20` }]}>
+              <Ionicons name="pie-chart" size={16} color={colors.accent} />
+            </View>
+            <Text style={[styles.summaryValue, { color: colors.text }]}>{winsCount}</Text>
+            <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>Vitórias</Text>
           </View>
-          <Text style={[styles.summaryValue, { color: colors.text }]}>{winsCount}</Text>
-          <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>Vitórias</Text>
-        </View>
 
-        <View style={[styles.summaryCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-          <View style={[styles.summaryIcon, { backgroundColor: `${colors.danger}20` }]}>
-            <Ionicons name="close" size={16} color={colors.danger} />
+          <View style={[styles.summaryCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <View style={[styles.summaryIcon, { backgroundColor: `${colors.danger}20` }]}>
+              <Ionicons name="close" size={16} color={colors.danger} />
+            </View>
+            <Text style={[styles.summaryValue, { color: colors.text }]}>{profile?.losses_count ?? 0}</Text>
+            <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>Derrotas</Text>
           </View>
-          <Text style={[styles.summaryValue, { color: colors.text }]}>{profile?.losses_count ?? 0}</Text>
-          <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>Derrotas</Text>
         </View>
-      </View>
 
-      {/* Match List Section */}
-      <Text style={[styles.sectionTitle, { color: colors.text }]}>Partidas Recentes</Text>
+        {/* Match List Section */}
+        <Text style={[styles.sectionTitle, { color: colors.text }]}>Partidas Recentes</Text>
 
-      {matches.length === 0 ? (
-        <View style={[styles.emptyCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-          <Ionicons name="file-tray-outline" size={38} color={colors.textSecondary} />
-          <Text style={[styles.emptyTitle, { color: colors.text }]}>Nenhuma partida registrada</Text>
-          <Text style={[styles.emptySub, { color: colors.textSecondary }]}>
-            Ao jogar contra o Bot no tabuleiro, todos os seus resultados e variações de Pontos aparecerão aqui!
-          </Text>
-          <TouchableOpacity
-            style={[styles.emptyButton, { backgroundColor: colors.primary }]}
-            activeOpacity={0.8}
-            onPress={() => navigation.navigate('Game')}
-          >
-            <Ionicons name="play" size={16} color="#ffffff" />
-            <Text style={styles.emptyButtonText}>Jogar Partida</Text>
-          </TouchableOpacity>
-        </View>
-      ) : (
-        <View style={styles.list}>
-          {matches.map((item) => {
-            const isWin = item.result === 'Vitória';
-            const isLoss = item.result === 'Derrota';
-            const badgeColor = isWin ? colors.primary : isLoss ? colors.danger : colors.accent;
-            const badgeBg = `${badgeColor}18`;
+        {matches.length === 0 ? (
+          <View style={[styles.emptyCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <Ionicons name="file-tray-outline" size={38} color={colors.textSecondary} />
+            <Text style={[styles.emptyTitle, { color: colors.text }]}>Nenhuma partida registrada</Text>
+            <Text style={[styles.emptySub, { color: colors.textSecondary }]}>
+              Ao jogar contra o Bot no tabuleiro, todos os seus resultados e variações de Pontos aparecerão aqui!
+            </Text>
+            <TouchableOpacity
+              style={[styles.emptyButton, { backgroundColor: colors.primary }]}
+              activeOpacity={0.8}
+              onPress={() => navigation.navigate('Game')}
+            >
+              <Ionicons name="play" size={16} color="#ffffff" />
+              <Text style={styles.emptyButtonText}>Jogar Partida</Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <View style={styles.list}>
+            {matches.map((item) => {
+              const isWin = item.result === 'Vitória';
+              const isLoss = item.result === 'Derrota';
+              const badgeColor = isWin ? colors.primary : isLoss ? colors.danger : colors.accent;
+              const badgeBg = `${badgeColor}18`;
 
-            return (
-              <View
-                key={item.id}
-                style={[styles.matchCard, { backgroundColor: colors.surface, borderColor: colors.border }]}
-              >
-                <View style={styles.matchLeft}>
-                  <View style={[styles.resultIconWrap, { backgroundColor: badgeBg }]}>
-                    <Ionicons
-                      name={isWin ? 'trophy' : isLoss ? 'close' : 'remove'}
-                      size={20}
-                      color={badgeColor}
-                    />
+              return (
+                <View
+                  key={item.id}
+                  style={[styles.matchCard, { backgroundColor: colors.surface, borderColor: colors.border }]}
+                >
+                  <View style={styles.matchLeft}>
+                    <View style={[styles.resultIconWrap, { backgroundColor: badgeBg }]}>
+                      <Ionicons
+                        name={isWin ? 'trophy' : isLoss ? 'close' : 'remove'}
+                        size={20}
+                        color={badgeColor}
+                      />
+                    </View>
+                    <View>
+                      <Text style={[styles.matchOpponent, { color: colors.text }]}>
+                        {item.opponent}
+                      </Text>
+                      <Text style={[styles.matchMeta, { color: colors.textSecondary }]}>
+                        Nível: {item.difficulty} • {item.moves_count} lances • {item.date}
+                      </Text>
+                    </View>
                   </View>
-                  <View>
-                    <Text style={[styles.matchOpponent, { color: colors.text }]}>
-                      {item.opponent}
-                    </Text>
-                    <Text style={[styles.matchMeta, { color: colors.textSecondary }]}>
-                      Nível: {item.difficulty} • {item.moves_count} lances • {item.date}
+
+                  <View style={styles.matchRight}>
+                    <View style={[styles.resultBadge, { backgroundColor: badgeBg }]}>
+                      <Text style={[styles.resultText, { color: badgeColor }]}>{item.result}</Text>
+                    </View>
+                    <Text
+                      style={[
+                        styles.ratingDiff,
+                        { color: item.rating_change >= 0 ? colors.primary : colors.danger },
+                      ]}
+                    >
+                      {item.rating_change >= 0 ? `+${item.rating_change}` : item.rating_change} Pontos
                     </Text>
                   </View>
                 </View>
-
-                <View style={styles.matchRight}>
-                  <View style={[styles.resultBadge, { backgroundColor: badgeBg }]}>
-                    <Text style={[styles.resultText, { color: badgeColor }]}>{item.result}</Text>
-                  </View>
-                  <Text
-                    style={[
-                      styles.ratingDiff,
-                      { color: item.rating_change >= 0 ? colors.primary : colors.danger },
-                    ]}
-                  >
-                    {item.rating_change >= 0 ? `+${item.rating_change}` : item.rating_change} Pontos
-                  </Text>
-                </View>
-              </View>
-            );
-          })}
-        </View>
-      )}
-
-      {/* Back button */}
-      <TouchableOpacity
-        style={[styles.backButton, { backgroundColor: colors.surface, borderColor: colors.border }]}
-        activeOpacity={0.7}
-        onPress={() => navigation.goBack()}
-      >
-        <Ionicons name="arrow-back" size={18} color={colors.text} />
-        <Text style={[styles.backButtonText, { color: colors.text }]}>Voltar ao Menu</Text>
-      </TouchableOpacity>
-    </ScrollView>
+              );
+            })}
+          </View>
+        )}
+      </ScrollView>
+    </View>
   );
 }
 
@@ -196,41 +202,46 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   content: {
-    padding: 18,
+    padding: 16,
     paddingBottom: 32,
   },
-  header: {
+  topBar: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 16,
+    justifyContent: 'space-between',
+    paddingVertical: 12,
+    borderBottomWidth: 1,
   },
-  eyebrow: {
-    fontSize: 12,
+  backButtonTop: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  topBarCenter: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  topBarTitle: {
+    fontSize: 18,
     fontWeight: '800',
-    textTransform: 'uppercase',
-    letterSpacing: 1,
-    marginBottom: 4,
   },
-  title: {
-    fontSize: 24,
-    fontWeight: '900',
-    marginBottom: 2,
+  topBarSub: {
+    fontSize: 11,
+    fontWeight: '700',
   },
-  subtitle: {
-    fontSize: 13,
-  },
-  headerIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: 14,
+  topBarIconWrap: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
   },
   overviewCard: {
-    borderRadius: 20,
+    borderRadius: 18,
     borderWidth: 1,
-    padding: 18,
+    padding: 16,
     marginBottom: 16,
   },
   overviewTop: {
@@ -241,7 +252,7 @@ const styles = StyleSheet.create({
   },
   overviewLabel: {
     fontSize: 12,
-    fontWeight: '700',
+    fontWeight: '600',
   },
   overviewValue: {
     fontSize: 22,
@@ -249,29 +260,29 @@ const styles = StyleSheet.create({
   },
   overviewUnit: {
     fontSize: 15,
-    fontWeight: '800',
+    fontWeight: '700',
   },
   trendBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
   },
   trendText: {
     fontSize: 12,
-    fontWeight: '800',
+    fontWeight: '700',
   },
   progressTrack: {
-    height: 7,
-    borderRadius: 99,
+    height: 6,
+    borderRadius: 3,
     overflow: 'hidden',
     marginBottom: 10,
   },
   progressFill: {
     height: '100%',
-    borderRadius: 99,
+    borderRadius: 3,
   },
   overviewFooter: {
     flexDirection: 'row',
@@ -282,7 +293,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
   },
   overviewPercent: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '800',
   },
   summaryRow: {
@@ -307,7 +318,7 @@ const styles = StyleSheet.create({
   },
   summaryValue: {
     fontSize: 18,
-    fontWeight: '800',
+    fontWeight: '900',
     marginBottom: 2,
   },
   summaryLabel: {
@@ -321,15 +332,14 @@ const styles = StyleSheet.create({
   },
   list: {
     gap: 10,
-    marginBottom: 20,
   },
   matchCard: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 14,
     borderRadius: 16,
     borderWidth: 1,
-    padding: 14,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
   },
   matchLeft: {
     flexDirection: 'row',
@@ -345,8 +355,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   matchOpponent: {
-    fontSize: 15,
-    fontWeight: '800',
+    fontSize: 14,
+    fontWeight: '700',
     marginBottom: 2,
   },
   matchMeta: {
@@ -358,60 +368,46 @@ const styles = StyleSheet.create({
   },
   resultBadge: {
     paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 8,
+    paddingVertical: 2,
+    borderRadius: 6,
   },
   resultText: {
     fontSize: 11,
     fontWeight: '800',
   },
   ratingDiff: {
-    fontSize: 13,
-    fontWeight: '800',
+    fontSize: 12,
+    fontWeight: '700',
   },
   emptyCard: {
+    padding: 32,
     borderRadius: 20,
     borderWidth: 1,
-    padding: 24,
     alignItems: 'center',
-    marginBottom: 20,
+    gap: 12,
   },
   emptyTitle: {
     fontSize: 16,
     fontWeight: '800',
-    marginTop: 10,
-    marginBottom: 6,
+    textAlign: 'center',
   },
   emptySub: {
     fontSize: 13,
     textAlign: 'center',
     lineHeight: 18,
-    marginBottom: 16,
   },
   emptyButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 16,
+    gap: 8,
+    paddingHorizontal: 20,
     paddingVertical: 10,
     borderRadius: 12,
+    marginTop: 8,
   },
   emptyButtonText: {
     color: '#ffffff',
     fontSize: 14,
     fontWeight: '800',
-  },
-  backButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    paddingVertical: 14,
-    borderRadius: 16,
-    borderWidth: 1,
-  },
-  backButtonText: {
-    fontSize: 15,
-    fontWeight: '700',
   },
 });
