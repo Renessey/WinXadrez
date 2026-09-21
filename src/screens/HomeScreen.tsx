@@ -358,7 +358,18 @@ export default function HomeScreen({ navigation }: Props) {
         {navItems.map((item) => (
           <TouchableOpacity
             key={item.title}
-            style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}
+            style={[
+              styles.card,
+              {
+                backgroundColor: colors.surface,
+                borderColor: `${item.color}66`,
+                shadowColor: item.color,
+                shadowOpacity: 0.12,
+                shadowRadius: 10,
+                shadowOffset: { width: 0, height: 4 },
+                elevation: 3,
+              },
+            ]}
             activeOpacity={0.9}
             onPress={() => {
               if (item.screen === 'Game') {
@@ -368,7 +379,19 @@ export default function HomeScreen({ navigation }: Props) {
               }
             }}
           >
-            <View style={[styles.iconWrapper, { backgroundColor: item.color + '22' }]}>
+            <View
+              style={[
+                styles.iconWrapper,
+                {
+                  backgroundColor: item.color + '22',
+                  borderColor: `${item.color}66`,
+                  shadowColor: item.color,
+                  shadowOpacity: 0.18,
+                  shadowRadius: 8,
+                  shadowOffset: { width: 0, height: 0 },
+                },
+              ]}
+            >
               <Ionicons name={item.icon} size={24} color={item.color} />
             </View>
             <View style={styles.cardInfo}>
@@ -925,6 +948,8 @@ const styles = StyleSheet.create({
     padding: 14,
     flexDirection: 'row',
     alignItems: 'center',
+    overflow: 'hidden',
+    backgroundColor: '#ffffff',
   },
   iconWrapper: {
     width: 44,
@@ -933,6 +958,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 12,
+    borderWidth: 1,
   },
   cardInfo: {
     flex: 1,
