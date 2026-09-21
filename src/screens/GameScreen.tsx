@@ -6,6 +6,7 @@ import {
   AppStateStatus,
   Easing,
   Modal,
+  Pressable,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -152,6 +153,7 @@ export default function GameScreen({ navigation, route }: Props) {
   const [levels, setLevels] = useState<UserLevelsSummary>(() => getUserLevels());
   const [botName, setBotName] = useState(() => getRandomBotName());
   const [turnNotice, setTurnNotice] = useState<string | null>(null);
+  const [hoveredAction, setHoveredAction] = useState<string | null>(null);
 
   const [game, setGame] = useState(() => new Chess());
   const [fen, setFen] = useState(game.fen());
@@ -1031,13 +1033,34 @@ export default function GameScreen({ navigation, route }: Props) {
     >
       {/* 1. Header estilo Chess app dark moderno */}
       <View style={[styles.header, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
-        <TouchableOpacity
-          style={styles.headerButton}
-          activeOpacity={0.7}
+        <Pressable
+          style={[
+            styles.headerButton,
+            hoveredAction === 'back'
+              ? {
+                  transform: [{ scale: 1.1 }],
+                  backgroundColor: 'rgba(56, 189, 248, 0.12)',
+                  borderRadius: 10,
+                  borderWidth: 1,
+                  borderColor: colors.accent,
+                  shadowColor: colors.accent,
+                  shadowOpacity: 0.55,
+                  shadowRadius: 8,
+                  shadowOffset: { width: 0, height: 0 },
+                  elevation: 4,
+                }
+              : {
+                  borderRadius: 10,
+                  borderWidth: 1,
+                  borderColor: 'transparent',
+                },
+          ]}
+          onHoverIn={() => setHoveredAction('back')}
+          onHoverOut={() => setHoveredAction(null)}
           onPress={() => navigation.goBack()}
         >
           <Ionicons name="arrow-back" size={24} color={colors.text} />
-        </TouchableOpacity>
+        </Pressable>
 
         <View style={styles.headerCenter}>
           <Text style={[styles.headerTitle, { color: colors.text }]}>
@@ -1048,13 +1071,34 @@ export default function GameScreen({ navigation, route }: Props) {
           </Text>
         </View>
 
-        <TouchableOpacity
-          style={styles.headerButton}
-          activeOpacity={0.7}
+        <Pressable
+          style={[
+            styles.headerButton,
+            hoveredAction === 'settings'
+              ? {
+                  transform: [{ scale: 1.1 }],
+                  backgroundColor: 'rgba(56, 189, 248, 0.12)',
+                  borderRadius: 10,
+                  borderWidth: 1,
+                  borderColor: colors.accent,
+                  shadowColor: colors.accent,
+                  shadowOpacity: 0.55,
+                  shadowRadius: 8,
+                  shadowOffset: { width: 0, height: 0 },
+                  elevation: 4,
+                }
+              : {
+                  borderRadius: 10,
+                  borderWidth: 1,
+                  borderColor: 'transparent',
+                },
+          ]}
+          onHoverIn={() => setHoveredAction('settings')}
+          onHoverOut={() => setHoveredAction(null)}
           onPress={() => setSettingsModalVisible(true)}
         >
           <Ionicons name="settings-sharp" size={22} color={colors.text} />
-        </TouchableOpacity>
+        </Pressable>
       </View>
 
       {/* 2. Top Player Card (Bot ou Amigo) */}
@@ -1279,27 +1323,78 @@ export default function GameScreen({ navigation, route }: Props) {
 
       {/* 5. Bottom Action Bar (Desistir, Empate e Alternar Modo) */}
       <View style={[styles.bottomActionBar, { backgroundColor: colors.surface, borderTopColor: colors.border }]}>
-        <TouchableOpacity
-          style={styles.bottomActionButton}
-          activeOpacity={0.7}
+        <Pressable
+          style={[
+            styles.bottomActionButton,
+            hoveredAction === 'forfeit'
+              ? {
+                  transform: [{ scale: 1.04 }],
+                  backgroundColor: 'rgba(239, 68, 68, 0.12)',
+                  borderRadius: 12,
+                  borderWidth: 1,
+                  borderColor: colors.danger,
+                  shadowColor: colors.danger,
+                  shadowOpacity: 0.5,
+                  shadowRadius: 7,
+                  shadowOffset: { width: 0, height: 0 },
+                  elevation: 3,
+                }
+              : { borderRadius: 12 },
+          ]}
+          onHoverIn={() => setHoveredAction('forfeit')}
+          onHoverOut={() => setHoveredAction(null)}
           onPress={handleForfeit}
         >
           <Ionicons name="flag-outline" size={19} color={colors.danger} />
           <Text style={[styles.bottomActionText, { color: colors.textSecondary }]}>Desistir</Text>
-        </TouchableOpacity>
+        </Pressable>
 
-        <TouchableOpacity
-          style={styles.bottomActionButton}
-          activeOpacity={0.7}
+        <Pressable
+          style={[
+            styles.bottomActionButton,
+            hoveredAction === 'draw'
+              ? {
+                  transform: [{ scale: 1.04 }],
+                  backgroundColor: 'rgba(56, 189, 248, 0.12)',
+                  borderRadius: 12,
+                  borderWidth: 1,
+                  borderColor: colors.accent,
+                  shadowColor: colors.accent,
+                  shadowOpacity: 0.5,
+                  shadowRadius: 7,
+                  shadowOffset: { width: 0, height: 0 },
+                  elevation: 3,
+                }
+              : { borderRadius: 12 },
+          ]}
+          onHoverIn={() => setHoveredAction('draw')}
+          onHoverOut={() => setHoveredAction(null)}
           onPress={handleOfferDraw}
         >
           <Ionicons name="hand-left-outline" size={19} color={colors.accent} />
           <Text style={[styles.bottomActionText, { color: colors.textSecondary }]}>Empate</Text>
-        </TouchableOpacity>
+        </Pressable>
 
-        <TouchableOpacity
-          style={styles.bottomActionButton}
-          activeOpacity={0.7}
+        <Pressable
+          style={[
+            styles.bottomActionButton,
+            hoveredAction === 'toggleMode'
+              ? {
+                  transform: [{ scale: 1.04 }],
+                  backgroundColor: 'rgba(56, 189, 248, 0.12)',
+                  borderRadius: 12,
+                  borderWidth: 1,
+                  borderColor: '#38bdf8',
+                  shadowColor: '#38bdf8',
+                  shadowOpacity: 0.5,
+                  shadowRadius: 7,
+                  shadowOffset: { width: 0, height: 0 },
+                  elevation: 3,
+                }
+              : { borderRadius: 12 },
+          ]}
+          onHoverIn={() => setHoveredAction('toggleMode')}
+          onHoverOut={() => setHoveredAction(null)}
           onPress={handleToggleMode}
         >
           <Ionicons
@@ -1315,7 +1410,7 @@ export default function GameScreen({ navigation, route }: Props) {
           >
             {gameMode === 'bot' ? 'Jogar contra' : 'Modo Bot'}
           </Text>
-        </TouchableOpacity>
+        </Pressable>
       </View>
 
       {/* Modal: Continuar Partida Anterior ou Reiniciar */}
@@ -1382,13 +1477,26 @@ export default function GameScreen({ navigation, route }: Props) {
                 <Text style={[styles.settingsLabel, { color: colors.textSecondary }]}>Dificuldade do Bot:</Text>
                 <View style={styles.difficultyPickerRow}>
                   {(['Fácil', 'Médio', 'Difícil'] as GameDifficulty[]).map((d) => (
-                    <TouchableOpacity
+                    <Pressable
                       key={d}
                       style={[
                         styles.difficultyOption,
                         { backgroundColor: colors.cardSecondary, borderColor: colors.border },
                         difficulty === d && { backgroundColor: colors.primary, borderColor: colors.accent },
+                        hoveredAction === `difficulty-${d}`
+                          ? {
+                              transform: [{ scale: 1.05 }],
+                              borderColor: '#38bdf8',
+                              shadowColor: '#38bdf8',
+                              shadowOpacity: 0.45,
+                              shadowRadius: 8,
+                              shadowOffset: { width: 0, height: 0 },
+                              elevation: 3,
+                            }
+                          : {},
                       ]}
+                      onHoverIn={() => setHoveredAction(`difficulty-${d}`)}
+                      onHoverOut={() => setHoveredAction(null)}
                       onPress={() => setDifficulty(d)}
                     >
                       <Text
@@ -1400,7 +1508,7 @@ export default function GameScreen({ navigation, route }: Props) {
                       >
                         {d}
                       </Text>
-                    </TouchableOpacity>
+                    </Pressable>
                   ))}
                 </View>
               </>

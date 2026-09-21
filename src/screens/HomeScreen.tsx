@@ -3,7 +3,7 @@ import {
   View,
   Text,
   StyleSheet,
-  TouchableOpacity,
+  Pressable,
   ScrollView,
   Animated,
   Modal,
@@ -66,10 +66,12 @@ export default function HomeScreen({ navigation }: Props) {
   const [playerName, setPlayerName] = useState('');
   const [selectedLevel, setSelectedLevel] = useState<SkillLevel>('Sei o básico');
   const [pendingMode, setPendingMode] = useState<'bot' | 'pvp'>('bot');
+  const [hoveredActivity, setHoveredActivity] = useState<string | null>(null);
 
   const pulse = useRef(new Animated.Value(0)).current;
   const orbTravel = useRef(new Animated.Value(0)).current;
   const explosion = useRef(new Animated.Value(0)).current;
+  const activityHoverScale = useRef(new Animated.Value(1)).current;
   const [heroWidth, setHeroWidth] = useState(0);
   const travelDistance = Math.max(heroWidth - 76, 220);
 
@@ -121,6 +123,45 @@ export default function HomeScreen({ navigation }: Props) {
     animation.start();
     return () => animation.stop();
   }, [explosion, orbTravel]);
+
+  useEffect(() => {
+    if (!hoveredActivity) {
+      Animated.timing(activityHoverScale, {
+        toValue: 1,
+        duration: 180,
+        useNativeDriver: true,
+      }).start();
+      return;
+    }
+
+    const animation = Animated.loop(
+      Animated.sequence([
+        Animated.timing(activityHoverScale, {
+          toValue: 1.02,
+          duration: 420,
+          useNativeDriver: true,
+        }),
+        Animated.timing(activityHoverScale, {
+          toValue: 1,
+          duration: 380,
+          useNativeDriver: true,
+        }),
+        Animated.timing(activityHoverScale, {
+          toValue: 1.025,
+          duration: 440,
+          useNativeDriver: true,
+        }),
+        Animated.timing(activityHoverScale, {
+          toValue: 1,
+          duration: 420,
+          useNativeDriver: true,
+        }),
+      ])
+    );
+
+    animation.start();
+    return () => animation.stop();
+  }, [hoveredActivity, activityHoverScale]);
 
   const handleStartGamePress = (targetMode: 'bot' | 'pvp' = 'bot') => {
     const currentProfile = getProfile();
@@ -204,14 +245,13 @@ export default function HomeScreen({ navigation }: Props) {
           </Text>
         </View>
 
-        <TouchableOpacity
+        <Pressable
           style={[styles.profileButton, { backgroundColor: colors.chipBg, borderColor: colors.border }]}
-          activeOpacity={0.8}
           onPress={() => navigation.navigate('Profile')}
         >
           <Ionicons name="person-circle-outline" size={20} color={colors.accent} />
           <Text style={[styles.profileButtonText, { color: colors.text }]}>Perfil</Text>
-        </TouchableOpacity>
+        </Pressable>
       </View>
 
       {/* Hero card */}
@@ -307,23 +347,21 @@ export default function HomeScreen({ navigation }: Props) {
             </Text>
 
             <View style={styles.heroActions}>
-              <TouchableOpacity
+              <Pressable
                 style={[styles.primaryButton, { backgroundColor: colors.primary }]}
-                activeOpacity={0.9}
                 onPress={() => handleStartGamePress('bot')}
               >
                 <Ionicons name="play" size={18} color="#ffffff" />
                 <Text style={styles.primaryButtonText}>Jogar</Text>
-              </TouchableOpacity>
+              </Pressable>
 
-              <TouchableOpacity
+              <Pressable
                 style={[styles.secondaryButton, { backgroundColor: colors.accent }]}
-                activeOpacity={0.9}
                 onPress={() => navigation.navigate('Puzzle')}
               >
                 <Ionicons name="sparkles" size={18} color="#171614" />
                 <Text style={styles.secondaryButtonText}>Puzzles</Text>
-              </TouchableOpacity>
+              </Pressable>
             </View>
           </View>
         </View>
@@ -355,52 +393,63 @@ export default function HomeScreen({ navigation }: Props) {
 
       {/* Menu items list */}
       <View style={styles.list}>
-        {navItems.map((item) => (
-          <TouchableOpacity
-            key={item.title}
-            style={[
-              styles.card,
-              {
-                backgroundColor: colors.surface,
-                borderColor: `${item.color}66`,
-                shadowColor: item.color,
-                shadowOpacity: 0.12,
-                shadowRadius: 10,
-                shadowOffset: { width: 0, height: 4 },
-                elevation: 3,
-              },
-            ]}
-            activeOpacity={0.9}
-            onPress={() => {
-              if (item.screen === 'Game') {
-                handleStartGamePress(item.mode ?? 'bot');
-              } else {
-                navigation.navigate(item.screen);
-              }
-            }}
-          >
-            <View
-              style={[
-                styles.iconWrapper,
-                {
-                  backgroundColor: item.color + '22',
-                  borderColor: `${item.color}66`,
-                  shadowColor: item.color,
-                  shadowOpacity: 0.18,
-                  shadowRadius: 8,
-                  shadowOffset: { width: 0, height: 0 },
-                },
-              ]}
+        {navItems.map((item) => {
+          const isHovered = hoveredActivity === item.title;
+
+          return (
+            <Animated.View
+              key={item.title}
+              style={{
+                transform: [{ scale: isHovered ? activityHoverScale : 1 }],
+              }}
             >
-              <Ionicons name={item.icon} size={24} color={item.color} />
-            </View>
-            <View style={styles.cardInfo}>
-              <Text style={[styles.cardTitle, { color: colors.text }]}>{item.title}</Text>
-              <Text style={[styles.cardSubtitle, { color: colors.textSecondary }]}>{item.subtitle}</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={18} color={colors.textSecondary} />
-          </TouchableOpacity>
-        ))}
+              <Pressable
+                style={[
+                  styles.card,
+                  {
+                    backgroundColor: colors.surface,
+                    borderColor: `${item.color}66`,
+                    shadowColor: item.color,
+                    shadowOpacity: isHovered ? 0.18 : 0.1,
+                    shadowRadius: isHovered ? 12 : 8,
+                    shadowOffset: { width: 0, height: isHovered ? 4 : 3 },
+                    elevation: isHovered ? 5 : 2,
+                  },
+                ]}
+                onHoverIn={() => setHoveredActivity(item.title)}
+                onHoverOut={() => setHoveredActivity(null)}
+                onPress={() => {
+                  if (item.screen === 'Game') {
+                    handleStartGamePress(item.mode ?? 'bot');
+                  } else {
+                    navigation.navigate(item.screen);
+                  }
+                }}
+              >
+                <View
+                  style={[
+                    styles.iconWrapper,
+                    {
+                      backgroundColor: item.color + '22',
+                      borderColor: `${item.color}66`,
+                      shadowColor: item.color,
+                      shadowOpacity: 0.18,
+                      shadowRadius: 8,
+                      shadowOffset: { width: 0, height: 0 },
+                    },
+                  ]}
+                >
+                  <Ionicons name={item.icon} size={24} color={item.color} />
+                </View>
+                <View style={styles.cardInfo}>
+                  <Text style={[styles.cardTitle, { color: colors.text }]}>{item.title}</Text>
+                  <Text style={[styles.cardSubtitle, { color: colors.textSecondary }]}>{item.subtitle}</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={18} color={colors.textSecondary} />
+              </Pressable>
+            </Animated.View>
+          );
+        })}
       </View>
 
       {/* Modal de Cadastro / Onboarding Inicial */}
@@ -474,7 +523,7 @@ export default function HomeScreen({ navigation }: Props) {
               ).map((opt) => {
                 const isSelected = selectedLevel === opt.level;
                 return (
-                  <TouchableOpacity
+                  <Pressable
                     key={opt.level}
                     style={[
                       styles.levelCard,
@@ -484,7 +533,6 @@ export default function HomeScreen({ navigation }: Props) {
                         borderWidth: isSelected ? 2 : 1,
                       },
                     ]}
-                    activeOpacity={0.8}
                     onPress={() => handleSelectLevel(opt.level)}
                   >
                     <View style={[styles.levelIconWrap, { backgroundColor: opt.color + '22' }]}>
@@ -499,38 +547,35 @@ export default function HomeScreen({ navigation }: Props) {
                       size={20}
                       color={isSelected ? opt.color : colors.textMuted}
                     />
-                  </TouchableOpacity>
+                  </Pressable>
                 );
               })}
             </View>
 
             {selectedLevel === 'Não sei jogar' && (
-              <TouchableOpacity
+              <Pressable
                 style={styles.tutorialButton}
-                activeOpacity={0.8}
                 onPress={() => setShowTutorial(true)}
               >
                 <Ionicons name="help-circle-outline" size={18} color="#f7b267" />
                 <Text style={styles.tutorialButtonText}>Ver tutorial de como jogar xadrez</Text>
-              </TouchableOpacity>
+              </Pressable>
             )}
 
             <View style={styles.modalButtonsRow}>
-              <TouchableOpacity
+              <Pressable
                 style={[styles.modalCancelButton, { borderColor: colors.border }]}
-                activeOpacity={0.8}
                 onPress={() => setShowOnboarding(false)}
               >
                 <Text style={[styles.modalCancelText, { color: colors.textSecondary }]}>Cancelar</Text>
-              </TouchableOpacity>
+              </Pressable>
 
-              <TouchableOpacity
+              <Pressable
                 style={[styles.modalConfirmButton, { backgroundColor: colors.primary }]}
-                activeOpacity={0.8}
                 onPress={handleConfirmOnboarding}
               >
                 <Text style={styles.modalConfirmText}>Começar a Jogar</Text>
-              </TouchableOpacity>
+              </Pressable>
             </View>
           </View>
         </View>
@@ -650,14 +695,13 @@ export default function HomeScreen({ navigation }: Props) {
               </View>
             </ScrollView>
 
-            <TouchableOpacity
+            <Pressable
               style={[styles.closeTutorialButton, { backgroundColor: colors.primary }]}
-              activeOpacity={0.85}
               onPress={() => setShowTutorial(false)}
             >
               <Ionicons name="checkmark-circle" size={20} color="#ffffff" />
               <Text style={styles.closeTutorialText}>Entendi! Vamos jogar</Text>
-            </TouchableOpacity>
+            </Pressable>
           </View>
         </View>
       </Modal>
@@ -675,13 +719,12 @@ export default function HomeScreen({ navigation }: Props) {
               <View style={[styles.levelSelectBadge, { backgroundColor: 'rgba(129, 182, 76, 0.15)' }]}>
                 <Ionicons name="game-controller" size={24} color="#81b64c" />
               </View>
-              <TouchableOpacity
+              <Pressable
                 style={styles.modalCloseBtn}
                 onPress={() => setShowLevelModal(false)}
-                activeOpacity={0.7}
               >
                 <Ionicons name="close" size={22} color={colors.textSecondary} />
-              </TouchableOpacity>
+              </Pressable>
             </View>
 
             <Text style={[styles.levelSelectTitle, { color: colors.text }]}>
@@ -715,7 +758,7 @@ export default function HomeScreen({ navigation }: Props) {
                   color: '#f87171',
                 },
               ].map((opt) => (
-                <TouchableOpacity
+                <Pressable
                   key={opt.level}
                   style={[
                     styles.difficultyOptionCard,
@@ -724,7 +767,6 @@ export default function HomeScreen({ navigation }: Props) {
                       borderColor: colors.border,
                     },
                   ]}
-                  activeOpacity={0.8}
                   onPress={() => handleSelectGameDifficulty(opt.level)}
                 >
                   <View style={[styles.diffIconWrap, { backgroundColor: opt.color + '22' }]}>
@@ -735,7 +777,7 @@ export default function HomeScreen({ navigation }: Props) {
                     <Text style={[styles.diffDesc, { color: colors.textSecondary }]}>{opt.desc}</Text>
                   </View>
                   <Ionicons name="chevron-forward" size={18} color={opt.color} />
-                </TouchableOpacity>
+                </Pressable>
               ))}
             </View>
           </View>

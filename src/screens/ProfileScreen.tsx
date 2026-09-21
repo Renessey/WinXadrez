@@ -105,7 +105,7 @@ export default function ProfileScreen({ navigation }: Props) {
   const stats = [
     { label: 'Nível Geral', value: `Nv. ${levels.totalLevel}`, icon: 'trophy', color: colors.accent },
     { label: 'Vitórias', value: `${winPercent}%`, icon: 'medal', color: colors.primary },
-    { label: 'Partidas', value: `${matchesCount}`, icon: 'game-controller', color: '#38bdf8' },
+    { label: 'Partidas Totais', value: `${matchesCount}`, icon: 'game-controller', color: '#38bdf8' },
   ];
 
   const settings = [
@@ -189,7 +189,9 @@ export default function ProfileScreen({ navigation }: Props) {
             <Text style={[styles.name, { color: colors.text }]}>{profile?.name || 'Jogador'}</Text>
           )}
           <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
-            {isEditingName ? 'Digite seu novo nome' : `Nível Geral ${levels.totalLevel} • ${profile?.skill_level || 'Iniciante'}`}
+            {isEditingName
+              ? 'Digite seu novo nome'
+              : `Nível ${levels.totalLevel} • ${profile?.skill_level || 'Iniciante'}`}
           </Text>
         </View>
 
@@ -240,11 +242,11 @@ export default function ProfileScreen({ navigation }: Props) {
       {/* Tabela Horizontal de Níveis (Fácil, Médio, Difícil) */}
       <View style={[styles.sectionCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
         <View style={styles.sectionHeaderRow}>
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>Nível por Dificuldade</Text>
-          <Text style={[styles.sectionSubtitle, { color: colors.accent }]}>Começa em 0</Text>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>Progresso por Dificuldade</Text>
+          <Text style={[styles.sectionSubtitle, { color: colors.accent }]}>Baseado em vitórias</Text>
         </View>
         <Text style={[styles.sectionDesc, { color: colors.textSecondary }]}>
-          Ganhe partidas para subir de nível. Cada dificuldade tem sua própria meta!
+          Cada dificuldade tem sua própria meta. O nível sobe conforme a quantidade de vitórias.
         </Text>
 
         <View style={styles.levelsTableHorizontal}>
