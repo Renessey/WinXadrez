@@ -710,6 +710,8 @@ export interface ActiveMatchState {
   difficulty: 'Fácil' | 'Médio' | 'Difícil';
   lastMove: { from: string; to: string } | null;
   historyLength: number;
+  history?: string[];
+  pgn?: string;
   opponentName?: string;
   gameMode?: 'bot' | 'pvp';
 }
@@ -722,6 +724,10 @@ function isValidActiveMatchState(value: unknown): value is ActiveMatchState {
   if (typeof state.blackTime !== 'number' || !Number.isFinite(state.blackTime) || state.blackTime < 0) return false;
   if (!['Fácil', 'Médio', 'Difícil'].includes(state.difficulty ?? '')) return false;
   if (typeof state.historyLength !== 'number' || !Number.isInteger(state.historyLength) || state.historyLength < 0) return false;
+  if (state.history !== undefined) {
+    if (!Array.isArray(state.history) || !state.history.every((move) => typeof move === 'string')) return false;
+  }
+  if (state.pgn !== undefined && typeof state.pgn !== 'string') return false;
   if (state.lastMove !== null) {
     if (!state.lastMove || typeof state.lastMove.from !== 'string' || typeof state.lastMove.to !== 'string') return false;
   }

@@ -271,6 +271,8 @@ export default function GameScreen() {
         difficulty,
         lastMove: lastMove ? { from: lastMove.from, to: lastMove.to } : null,
         historyLength: game.history().length,
+        history: game.history(),
+        pgn: game.pgn(),
         opponentName: botName,
         gameMode,
       });
@@ -358,8 +360,19 @@ export default function GameScreen() {
     if (saved && saved.fen) {
       try {
         const loadedGame = new Chess(saved.fen);
+        if (saved.pgn) {
+          loadedGame.loadPgn(saved.pgn);
+        } else if (saved.history?.length) {
+          const rebuilt = new Chess();
+          for (const move of saved.history) {
+            rebuilt.move(move);
+          }
+          if (!rebuilt.isGameOver() || rebuilt.fen()) {
+            loadedGame.loadPgn(rebuilt.pgn());
+          }
+        }
         setGame(loadedGame);
-        setFen(saved.fen);
+        setFen(loadedGame.fen());
         setWhiteTime(saved.whiteTime ?? 120);
         setBlackTime(saved.blackTime ?? 120);
         if (saved.opponentName) setBotName(saved.opponentName);
