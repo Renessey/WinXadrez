@@ -168,3 +168,26 @@ npm run typecheck
 8. Acompanhe evolucao em **Niveis & Ligas**, **Conquistas**, **Historico** e **Ranking**.
 9. Abra o **Perfil** para editar o nome e consultar estatisticas.
 10. Em **Configuracoes**, altere o tema ou limpe cache e dados locais da partida.
+
+## Banco de dados SQLite
+
+O aplicativo cria e abre o banco local `winxadrez.db` por meio de `expo-sqlite`.
+O modo WAL e habilitado para melhorar a persistencia das escritas. Os dados permanecem
+no dispositivo e continuam disponiveis apos fechar e abrir o aplicativo.
+
+### Estrutura principal
+
+- `profile`: informa nome, nivel de conhecimento, pontos e contadores de partidas;
+- `matches`: registra adversario, resultado, variacao de pontos, cor, dificuldade,
+  quantidade de lances e data;
+- `settings`: guarda preferencias e estados serializados em texto;
+- `ranking_players`: armazena jogadores humanos e bots, pontos, resultados e posicao;
+- indices: aceleram o ranking por pontos e garantem somente um perfil local.
+
+Dados estruturados em JSON, como partida ativa, cache de puzzle diario e progresso de
+puzzles, sao armazenados como texto na tabela `settings`. Antes da leitura, o aplicativo
+valida os campos esperados e rejeita dados malformados.
+
+A versao atual da estrutura e registrada em `settings.database_schema_version` e no
+`PRAGMA user_version` do banco. A verificacao automatizada esta em `scripts/verify_sqlite.py`
+e pode ser executada por `npm run test:sqlite`.
