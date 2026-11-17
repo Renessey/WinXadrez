@@ -198,3 +198,4 @@ export async function fetchDailyPuzzle(): Promise<PuzzleSpec> {
 export async function fetchNextPuzzle(): Promise<PuzzleSpec> {
   return fetchLichessPuzzle('/next', 'lichess-random');
 }
+

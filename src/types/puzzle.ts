@@ -54,3 +54,4 @@ export interface LichessPuzzleApiResponse {
     initialPly: number;
   };
 }
+
