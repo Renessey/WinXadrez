@@ -122,6 +122,40 @@ def test_database(database_path: Path) -> None:
         assert connection.execute(
             "SELECT COUNT(*) FROM matches"
         ).fetchone()[0] == 0
+
+        connection.execute(
+            "UPDATE profile SET rating = 100, matches_count = 1,"
+            " wins_count = 1, losses_count = 0, draws_count = 0"
+        )
+        connection.commit()
+
+        connection.execute("SAVEPOINT match_transaction")
+        connection.execute(
+            """
+            INSERT INTO matches (
+                opponent, result, rating_change, player_color,
+                difficulty, moves_count, date
+            ) VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            ("Rollback Test", "Vitória", 25, "w", "Fácil", 8, "2026-11-17"),
+        )
+        connection.execute(
+            """
+            UPDATE profile
+            SET matches_count = matches_count + 1,
+                wins_count = wins_count + 1,
+                rating = rating + 25
+            """,
+        )
+        connection.execute("ROLLBACK TO match_transaction")
+        connection.execute("RELEASE match_transaction")
+
+        assert connection.execute(
+            "SELECT COUNT(*) FROM matches"
+        ).fetchone()[0] == 0
+        assert connection.execute(
+            "SELECT matches_count, wins_count, rating FROM profile"
+        ).fetchone() == (1, 1, 100)
     finally:
         connection.close()
 

@@ -513,27 +513,29 @@ export function recordMatchResult(
       }
     }
 
-    db.runSync(
-      `INSERT INTO matches (opponent, result, rating_change, player_color, difficulty, moves_count, date)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [opponent, result, delta, playerColor, difficulty, movesCount, now]
-    );
-
     const isWin = result === 'Vitória' ? 1 : 0;
     const isLoss = result === 'Derrota' ? 1 : 0;
     const isDraw = result === 'Empate' ? 1 : 0;
 
-    // Atualiza perfil garantindo que pontos nunca fiquem negativos (mínimo 0)
-    db.runSync(
-      `UPDATE profile
-       SET matches_count = matches_count + 1,
-           wins_count = wins_count + ?,
-           losses_count = losses_count + ?,
-           draws_count = draws_count + ?,
-           rating = MAX(0, rating + ?)
-       WHERE id = (SELECT id FROM profile ORDER BY id ASC LIMIT 1)`,
-      [isWin, isLoss, isDraw, delta]
-    );
+    db.withTransactionSync(() => {
+      db.runSync(
+        `INSERT INTO matches (opponent, result, rating_change, player_color, difficulty, moves_count, date)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        [opponent, result, delta, playerColor, difficulty, movesCount, now]
+      );
+
+      // Atualiza perfil garantindo que pontos nunca fiquem negativos (mínimo 0)
+      db.runSync(
+        `UPDATE profile
+         SET matches_count = matches_count + 1,
+             wins_count = wins_count + ?,
+             losses_count = losses_count + ?,
+             draws_count = draws_count + ?,
+             rating = MAX(0, rating + ?)
+         WHERE id = (SELECT id FROM profile ORDER BY id ASC LIMIT 1)`,
+        [isWin, isLoss, isDraw, delta]
+      );
+    });
 
     // Sincroniza o usuário no ranking
     syncUserInRanking(db);
