@@ -156,6 +156,53 @@ def test_database(database_path: Path) -> None:
         assert connection.execute(
             "SELECT matches_count, wins_count, rating FROM profile"
         ).fetchone() == (1, 1, 100)
+
+        valid_active_match = (
+            '{"fen":"startpos","whiteTime":600,"blackTime":600,'
+            '"difficulty":"Fácil","lastMove":null,"historyLength":0}'
+        )
+        invalid_active_match = '{"fen":"","whiteTime":-1,"blackTime":600}'
+        connection.execute(
+            "INSERT INTO settings (key, value) VALUES (?, ?)",
+            ("active_match_state", valid_active_match),
+        )
+        connection.execute(
+            "INSERT INTO settings (key, value) VALUES (?, ?)",
+            ("invalid_active_match", invalid_active_match),
+        )
+
+        valid_progress = '{"streak":3,"solvedIds":["puzzle-1","puzzle-2"]}'
+        invalid_progress = '{"streak":-3,"solvedIds":"puzzle-1"}'
+        connection.execute(
+            "INSERT INTO settings (key, value) VALUES (?, ?)",
+            ("puzzle_progress", valid_progress),
+        )
+        connection.execute(
+            "INSERT INTO settings (key, value) VALUES (?, ?)",
+            ("invalid_puzzle_progress", invalid_progress),
+        )
+        connection.commit()
+
+        active = connection.execute(
+            "SELECT value FROM settings WHERE key = 'active_match_state'"
+        ).fetchone()[0]
+        invalid_active = connection.execute(
+            "SELECT value FROM settings WHERE key = 'invalid_active_match'"
+        ).fetchone()[0]
+        progress = connection.execute(
+            "SELECT value FROM settings WHERE key = 'puzzle_progress'"
+        ).fetchone()[0]
+        invalid_progress_value = connection.execute(
+            "SELECT value FROM settings WHERE key = 'invalid_puzzle_progress'"
+        ).fetchone()[0]
+
+        import json
+        active_data = json.loads(active)
+        assert active_data["fen"] == "startpos"
+        assert active_data["historyLength"] == 0
+        assert json.loads(invalid_active)["fen"] == ""
+        assert json.loads(progress)["streak"] == 3
+        assert json.loads(invalid_progress_value)["streak"] == -3
     finally:
         connection.close()
 

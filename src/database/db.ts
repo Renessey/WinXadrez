@@ -688,7 +688,27 @@ export interface ActiveMatchState {
   gameMode?: 'bot' | 'pvp';
 }
 
+function isValidActiveMatchState(value: unknown): value is ActiveMatchState {
+  if (!value || typeof value !== 'object') return false;
+  const state = value as Partial<ActiveMatchState>;
+  if (typeof state.fen !== 'string' || state.fen.trim().length === 0) return false;
+  if (typeof state.whiteTime !== 'number' || !Number.isFinite(state.whiteTime) || state.whiteTime < 0) return false;
+  if (typeof state.blackTime !== 'number' || !Number.isFinite(state.blackTime) || state.blackTime < 0) return false;
+  if (!['Fácil', 'Médio', 'Difícil'].includes(state.difficulty ?? '')) return false;
+  if (typeof state.historyLength !== 'number' || !Number.isInteger(state.historyLength) || state.historyLength < 0) return false;
+  if (state.lastMove !== null) {
+    if (!state.lastMove || typeof state.lastMove.from !== 'string' || typeof state.lastMove.to !== 'string') return false;
+  }
+  if (state.opponentName !== undefined && typeof state.opponentName !== 'string') return false;
+  if (state.gameMode !== undefined && state.gameMode !== 'bot' && state.gameMode !== 'pvp') return false;
+  return true;
+}
+
 export function saveActiveMatch(state: ActiveMatchState): void {
+  if (!isValidActiveMatchState(state)) {
+    console.error('Nao foi possivel salvar partida ativa: dados invalidos.');
+    return;
+  }
   setSetting('active_match_state', JSON.stringify(state));
 }
 
@@ -696,7 +716,8 @@ export function getActiveMatch(): ActiveMatchState | null {
   try {
     const raw = getSetting('active_match_state', '');
     if (!raw) return null;
-    return JSON.parse(raw);
+    const parsed: unknown = JSON.parse(raw);
+    return isValidActiveMatchState(parsed) ? parsed : null;
   } catch {
     return null;
   }
@@ -729,6 +750,36 @@ export interface PuzzleProgress {
   solvedIds: string[];
 }
 
+function isValidPuzzleProgress(value: unknown): value is PuzzleProgress {
+  if (!value || typeof value !== 'object') return false;
+  const progress = value as Partial<PuzzleProgress>;
+  return (
+    typeof progress.streak === 'number' &&
+    Number.isInteger(progress.streak) &&
+    progress.streak >= 0 &&
+    Array.isArray(progress.solvedIds) &&
+    progress.solvedIds.every((id) => typeof id === 'string')
+  );
+}
+
+function isValidPuzzleSpec(value: unknown): value is PuzzleSpec {
+  if (!value || typeof value !== 'object') return false;
+  const puzzle = value as Partial<PuzzleSpec>;
+  return (
+    typeof puzzle.id === 'string' && puzzle.id.length > 0 &&
+    typeof puzzle.title === 'string' &&
+    typeof puzzle.fen === 'string' && puzzle.fen.length > 0 &&
+    typeof puzzle.subtitle === 'string' &&
+    typeof puzzle.icon === 'string' &&
+    typeof puzzle.color === 'string' &&
+    typeof puzzle.level === 'string' &&
+    typeof puzzle.objective === 'string' &&
+    typeof puzzle.hint === 'string' &&
+    Array.isArray(puzzle.solutionMoves) &&
+    (puzzle.source === 'offline' || puzzle.source === 'lichess-daily' || puzzle.source === 'lichess-random')
+  );
+}
+
 export function getLocalDateKey(): string {
   const now = new Date();
   const year = now.getFullYear();
@@ -741,9 +792,11 @@ export function getCachedDailyPuzzle(): CachedDailyPuzzleRecord | null {
   try {
     const raw = getSetting('cached_daily_puzzle', '');
     if (!raw) return null;
-    const parsed = JSON.parse(raw) as CachedDailyPuzzleRecord;
-    if (!parsed?.puzzle?.id || !parsed?.puzzle?.fen) return null;
-    return parsed;
+    const parsed: unknown = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object') return null;
+    const cached = parsed as Partial<CachedDailyPuzzleRecord>;
+    if (typeof cached.date !== 'string' || !isValidPuzzleSpec(cached.puzzle)) return null;
+    return cached as CachedDailyPuzzleRecord;
   } catch {
     return null;
   }
@@ -751,6 +804,10 @@ export function getCachedDailyPuzzle(): CachedDailyPuzzleRecord | null {
 
 export function saveCachedDailyPuzzle(puzzle: PuzzleSpec): void {
   try {
+    if (!isValidPuzzleSpec(puzzle)) {
+      console.error('Nao foi possivel salvar puzzle: dados invalidos.');
+      return;
+    }
     const payload: CachedDailyPuzzleRecord = {
       date: getLocalDateKey(),
       puzzle,
@@ -765,11 +822,9 @@ export function getPuzzleProgress(): PuzzleProgress {
   try {
     const raw = getSetting('puzzle_progress', '');
     if (!raw) return { streak: 0, solvedIds: [] };
-    const parsed = JSON.parse(raw) as Partial<PuzzleProgress>;
-    return {
-      streak: typeof parsed.streak === 'number' ? parsed.streak : 0,
-      solvedIds: Array.isArray(parsed.solvedIds) ? parsed.solvedIds : [],
-    };
+    const parsed: unknown = JSON.parse(raw);
+    if (!isValidPuzzleProgress(parsed)) return { streak: 0, solvedIds: [] };
+    return parsed;
   } catch {
     return { streak: 0, solvedIds: [] };
   }
