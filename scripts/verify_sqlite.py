@@ -203,6 +203,53 @@ def test_database(database_path: Path) -> None:
         assert json.loads(invalid_active)["fen"] == ""
         assert json.loads(progress)["streak"] == 3
         assert json.loads(invalid_progress_value)["streak"] == -3
+
+        connection.execute(
+            """
+            UPDATE profile
+            SET losses_count = 2,
+                wins_count = 3,
+                draws_count = 1,
+                matches_count = 6
+            """
+        )
+        connection.execute(
+            """
+            INSERT INTO matches (
+                opponent, result, rating_change, player_color,
+                difficulty, moves_count, date
+            ) VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            ("Reset Test", "Derrota", -10, "w", "Médio", 10, "2026-11-17"),
+        )
+        connection.execute(
+            "INSERT INTO settings (key, value) VALUES (?, ?) "
+            "ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+            ("active_match_state", '{"fen":"reset-test"}'),
+        )
+        connection.commit()
+
+        connection.execute("SAVEPOINT reset_transaction")
+        connection.execute("UPDATE profile SET losses_count = 0")
+        connection.execute("DELETE FROM matches WHERE result = 'Derrota'")
+        connection.execute(
+            "UPDATE profile SET matches_count = wins_count + draws_count"
+        )
+        connection.execute(
+            "UPDATE settings SET value = '' WHERE key = 'active_match_state'"
+        )
+        connection.execute("ROLLBACK TO reset_transaction")
+        connection.execute("RELEASE reset_transaction")
+
+        assert connection.execute(
+            "SELECT losses_count, matches_count FROM profile"
+        ).fetchone() == (2, 6)
+        assert connection.execute(
+            "SELECT COUNT(*) FROM matches WHERE result = 'Derrota'"
+        ).fetchone()[0] == 1
+        assert connection.execute(
+            "SELECT value FROM settings WHERE key = 'active_match_state'"
+        ).fetchone()[0] != ""
     finally:
         connection.close()
 

@@ -730,10 +730,15 @@ export function clearActiveMatch(): void {
 export function resetLossesAndCache(): void {
   try {
     const db = getDatabase();
-    db.runSync('UPDATE profile SET losses_count = 0');
-    db.runSync("DELETE FROM matches WHERE result = 'Derrota'");
-    db.runSync('UPDATE profile SET matches_count = wins_count + draws_count');
-    clearActiveMatch();
+    db.withTransactionSync(() => {
+      db.runSync('UPDATE profile SET losses_count = 0');
+      db.runSync("DELETE FROM matches WHERE result = 'Derrota'");
+      db.runSync('UPDATE profile SET matches_count = wins_count + draws_count');
+      db.runSync(
+        'INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value',
+        ['active_match_state', '']
+      );
+    });
     syncUserInRanking(db);
   } catch (err) {
     console.error('Erro ao resetar derrotas e cache:', err);
