@@ -212,3 +212,8 @@ licença MIT da base Expo/650 Industries. Ele não identifica uma licença próp
 autorizada para o WinXadrez. Antes de distribuir o projeto, o responsável deve
 confirmar os direitos autorais e aplicar uma licença compatível com o código e os
 recursos utilizados.
+
+## Apresentação em vídeo
+
+- Roteiro cronometrado: [ROTEIRO_APRESENTACAO.md](ROTEIRO_APRESENTACAO.md);
+- Checklist de preparação e gravação: [CHECKLIST_APRESENTACAO.md](CHECKLIST_APRESENTACAO.md).

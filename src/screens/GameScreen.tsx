@@ -88,6 +88,9 @@ const SquareCell = React.memo(function SquareCell({
         },
       ]}
       activeOpacity={0.92}
+      accessibilityRole="button"
+      accessibilityLabel={piece ? `${square}, peça ${piece.type === 'p' ? 'peão' : piece.type}` : `Casa ${square}`}
+      accessibilityHint={piece ? 'Toque para selecionar esta peça' : 'Toque para mover a peça selecionada'}
       onPress={() => onPress(square)}
     >
       {/* Camada suave e harmoniosa de destaque sobre o tabuleiro verde (sem amarelo estridente) */}
@@ -1117,6 +1120,9 @@ export default function GameScreen() {
       {/* 1. Header estilo Chess app dark moderno */}
       <View style={[styles.header, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
         <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Voltar"
+          accessibilityHint="Voltar para a tela anterior"
           style={[
             styles.headerButton,
             hoveredAction === 'back'
@@ -1155,6 +1161,9 @@ export default function GameScreen() {
         </View>
 
         <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Configurações da partida"
+          accessibilityHint="Abrir dificuldade e opções da partida"
           style={[
             styles.headerButton,
             hoveredAction === 'settings'
@@ -1742,8 +1751,8 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
   },
   headerButton: {
-    width: 38,
-    height: 38,
+    width: 44,
+    height: 44,
     alignItems: 'center',
     justifyContent: 'center',
   },
