@@ -98,3 +98,28 @@ Antes de executar o projeto, prepare o ambiente com:
 
 O arquivo `package-lock.json` registra as dependencias do projeto JavaScript e deve
 ser utilizado para restaurar as versoes definidas pelo lockfile.
+
+## Instalacao
+
+1. Clone o repositorio e entre na pasta do projeto:
+
+```bash
+git clone <url-do-repositorio>
+cd WinXadrez
+```
+
+2. Instale as dependencias a partir do lockfile:
+
+```bash
+npm ci
+```
+
+3. Confirme que a dependencia de Expo CLI pode ser executada pelos scripts do npm:
+
+```bash
+npx expo --version
+```
+
+O comando `npm ci` remove uma instalacao anterior do diretório `node_modules` e cria
+uma nova instalacao exatamente conforme `package-lock.json`. Caso as dependencias ainda
+tenham sido restauradas, altere o manifesto ou o lockfile somente quando necessario.
