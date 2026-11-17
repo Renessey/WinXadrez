@@ -125,8 +125,8 @@ function initDatabase(db: SQLite.SQLiteDatabase): void {
         "INSERT INTO settings (key, value) VALUES ('zero_points_v2', 'true') ON CONFLICT(key) DO UPDATE SET value = 'true'"
       );
     }
-  } catch {
-    // ignorar
+  } catch (err) {
+    console.error('Erro ao inicializar o reset de pontos SQLite:', err);
   }
 
   // Popula os 1000 bots caso a tabela ainda não os tenha
@@ -463,16 +463,17 @@ export function createProfile(name: string, skill_level: SkillLevel): UserProfil
   };
 }
 
-export function updateProfileName(name: string): void {
+export function updateProfileName(name: string): boolean {
   try {
     const db = getDatabase();
     const trimmed = name.trim();
-    if (trimmed.length > 0) {
-      db.runSync('UPDATE profile SET name = ? WHERE id = (SELECT id FROM profile ORDER BY id ASC LIMIT 1)', [trimmed]);
-      syncUserInRanking(db);
-    }
+    if (trimmed.length === 0) return false;
+    db.runSync('UPDATE profile SET name = ? WHERE id = (SELECT id FROM profile ORDER BY id ASC LIMIT 1)', [trimmed]);
+    syncUserInRanking(db);
+    return true;
   } catch (err) {
     console.error('Erro ao atualizar nome do perfil:', err);
+    return false;
   }
 }
 
@@ -486,7 +487,7 @@ export function recordMatchResult(
   movesCount: number,
   opponent = 'Bot WinXadrez',
   playerColor: 'w' | 'b' = 'w'
-): { userPoints: number; userRank: number; pointsEarned: number } {
+): { userPoints: number; userRank: number; pointsEarned: number; success: boolean; error?: string } {
   try {
     const db = getDatabase();
     const now = new Date().toLocaleDateString('pt-BR', {
@@ -541,10 +542,16 @@ export function recordMatchResult(
     // Obtém a nova posição do usuário
     const { rank, points } = getUserRankingPosition();
 
-    return { userPoints: points, userRank: rank, pointsEarned: delta };
+    return { userPoints: points, userRank: rank, pointsEarned: delta, success: true };
   } catch (err) {
     console.error('Erro ao registrar resultado da partida no SQLite:', err);
-    return { userPoints: 0, userRank: 1000, pointsEarned: 0 };
+    return {
+      userPoints: 0,
+      userRank: 0,
+      pointsEarned: 0,
+      success: false,
+      error: err instanceof Error ? err.message : 'Falha desconhecida ao registrar partida',
+    };
   }
 }
 
@@ -568,15 +575,17 @@ export function getSetting(key: string, defaultValue: string): string {
   }
 }
 
-export function setSetting(key: string, value: string): void {
+export function setSetting(key: string, value: string): boolean {
   try {
     const db = getDatabase();
     db.runSync(
       'INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value',
       [key, value]
     );
+    return true;
   } catch (err) {
     console.error(`Erro ao salvar configuração ${key}:`, err);
+    return false;
   }
 }
 
@@ -718,11 +727,11 @@ export function getActiveMatch(): ActiveMatchState | null {
   }
 }
 
-export function clearActiveMatch(): void {
-  setSetting('active_match_state', '');
+export function clearActiveMatch(): boolean {
+  return setSetting('active_match_state', '');
 }
 
-export function resetLossesAndCache(): void {
+export function resetLossesAndCache(): boolean {
   try {
     const db = getDatabase();
     db.withTransactionSync(() => {
@@ -735,8 +744,10 @@ export function resetLossesAndCache(): void {
       );
     });
     syncUserInRanking(db);
+    return true;
   } catch (err) {
     console.error('Erro ao resetar derrotas e cache:', err);
+    return false;
   }
 }
 
