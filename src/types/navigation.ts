@@ -5,4 +5,11 @@ export type RootStackParamList = {
   History: undefined;
   Leaderboard: undefined;
   Profile: undefined;
+  Tutorial: undefined;
+  Openings: undefined;
+  Achievements: undefined;
+  Levels: undefined;
+  MatchDetail: { id?: string } | undefined;
+  PlayerDetail: { name?: string } | undefined;
+  Settings: undefined;
 };

@@ -152,8 +152,24 @@ export default function HistoryScreen() {
               const badgeBg = `${badgeColor}18`;
 
               return (
-                <View
+                <TouchableOpacity
                   key={item.id}
+                  activeOpacity={0.8}
+                  onPress={() =>
+                    router.push({
+                      pathname: '/match-detail',
+                      params: {
+                        id: String(item.id),
+                        opponent: item.opponent,
+                        result: item.result,
+                        rating_change: String(item.rating_change),
+                        player_color: item.player_color,
+                        difficulty: item.difficulty,
+                        moves_count: String(item.moves_count),
+                        date: item.date,
+                      },
+                    })
+                  }
                   style={[styles.matchCard, { backgroundColor: colors.surface, borderColor: colors.border }]}
                 >
                   <View style={styles.matchLeft}>
@@ -187,7 +203,7 @@ export default function HistoryScreen() {
                       {item.rating_change >= 0 ? `+${item.rating_change}` : item.rating_change} Pontos
                     </Text>
                   </View>
-                </View>
+                </TouchableOpacity>
               );
             })}
           </View>

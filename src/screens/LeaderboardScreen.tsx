@@ -263,7 +263,24 @@ export default function LeaderboardScreen() {
       : colors.textSecondary;
 
     return (
-      <View
+      <TouchableOpacity
+        activeOpacity={0.8}
+        onPress={() =>
+          router.push({
+            pathname: '/player-detail',
+            params: {
+              name: item.name,
+              rank: String(item.rank),
+              points: String(item.points),
+              tier: item.tier,
+              wins: String(item.wins),
+              losses: String(item.losses),
+              draws: String(item.draws),
+              matches: String(item.matches),
+              is_user: item.is_user ? '1' : '0',
+            },
+          })
+        }
         style={[
           styles.rankRow,
           { borderBottomColor: colors.border },
@@ -344,7 +361,7 @@ export default function LeaderboardScreen() {
           </Text>
           <Text style={[styles.pointsUnit, { color: colors.textSecondary }]}>pts</Text>
         </View>
-      </View>
+      </TouchableOpacity>
     );
   };
 

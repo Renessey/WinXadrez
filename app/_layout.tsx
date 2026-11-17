@@ -152,6 +152,13 @@ function MainLayout() {
               <Stack.Screen name="history" options={{ title: 'Histórico' }} />
               <Stack.Screen name="leaderboard" options={{ title: 'Ranking' }} />
               <Stack.Screen name="profile" options={{ title: 'Perfil' }} />
+              <Stack.Screen name="tutorial" options={{ title: 'Aprenda Xadrez' }} />
+              <Stack.Screen name="openings" options={{ title: 'Aberturas' }} />
+              <Stack.Screen name="achievements" options={{ title: 'Conquistas' }} />
+              <Stack.Screen name="levels" options={{ title: 'Níveis & Ligas' }} />
+              <Stack.Screen name="match-detail" options={{ title: 'Detalhes da Partida' }} />
+              <Stack.Screen name="player-detail" options={{ title: 'Ficha do Jogador' }} />
+              <Stack.Screen name="settings" options={{ title: 'Configurações' }} />
             </Stack>
           </View>
         </View>

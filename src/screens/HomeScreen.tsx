@@ -39,9 +39,14 @@ const navItems: NavItem[] = [
   { title: 'Partida', subtitle: 'Jogar vs Bot', screen: 'Game', icon: 'game-controller', color: '#81b64c', mode: 'bot' },
   { title: 'Jogar contra', subtitle: 'Contra um amigo (2 Jogadores)', screen: 'Game', icon: 'people', color: '#38bdf8', mode: 'pvp' },
   { title: 'Puzzle', subtitle: 'Desafios diários', screen: 'Puzzle', icon: 'extension-puzzle', color: '#f7b267' },
+  { title: 'Aberturas', subtitle: 'Biblioteca & posições', screen: 'Openings', icon: 'book', color: '#2dd4bf' },
+  { title: 'Aprenda a Jogar', subtitle: 'Regras e movimentos', screen: 'Tutorial', icon: 'school', color: '#fb923c' },
+  { title: 'Conquistas', subtitle: 'Medalhas e metas', screen: 'Achievements', icon: 'medal', color: '#f472b6' },
+  { title: 'Níveis & Ligas', subtitle: 'Sua evolução por modo', screen: 'Levels', icon: 'trending-up', color: '#34d399' },
   { title: 'Histórico', subtitle: 'Resultados recentes', screen: 'History', icon: 'time', color: '#5fa8ff' },
   { title: 'Ranking', subtitle: '1.000 Jogadores', screen: 'Leaderboard', icon: 'trophy', color: '#f7d36d' },
   { title: 'Perfil', subtitle: 'Estatísticas reais', screen: 'Profile', icon: 'person', color: '#9b8cff' },
+  { title: 'Configurações', subtitle: 'Tema, cache e preferências', screen: 'Settings', icon: 'settings', color: '#94a3b8' },
 ];
 
 const particleDirections = [
@@ -247,6 +252,13 @@ export default function HomeScreen() {
         </View>
 
         <Pressable
+          style={[styles.profileButton, { backgroundColor: colors.chipBg, borderColor: colors.border, marginRight: 8 }]}
+          onPress={() => router.push('/settings')}
+        >
+          <Ionicons name="settings-outline" size={18} color={colors.textSecondary} />
+        </Pressable>
+
+        <Pressable
           style={[styles.profileButton, { backgroundColor: colors.chipBg, borderColor: colors.border }]}
           onPress={() => router.push('/profile')}
         >
@@ -428,6 +440,11 @@ export default function HomeScreen() {
                       History: '/history',
                       Leaderboard: '/leaderboard',
                       Profile: '/profile',
+                      Tutorial: '/tutorial',
+                      Openings: '/openings',
+                      Achievements: '/achievements',
+                      Levels: '/levels',
+                      Settings: '/settings',
                     };
                     router.push(routeMap[item.screen] as any);
                   }

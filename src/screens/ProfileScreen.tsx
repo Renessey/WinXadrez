@@ -99,6 +99,27 @@ export default function ProfileScreen() {
 
   const settings = [
     {
+      label: 'Níveis e Divisões',
+      value: `Nv. ${levels.totalLevel}`,
+      icon: 'trending-up',
+      iconColor: colors.primary,
+      onPress: () => router.push('/levels'),
+    },
+    {
+      label: 'Conquistas e Medalhas',
+      value: 'Ver metas',
+      icon: 'medal',
+      iconColor: '#f5b858',
+      onPress: () => router.push('/achievements'),
+    },
+    {
+      label: 'Configurações avançadas',
+      value: 'Cache e sistema',
+      icon: 'settings-outline',
+      iconColor: '#5fa8ff',
+      onPress: () => router.push('/settings'),
+    },
+    {
       label: 'Tema do aplicativo',
       value: mode === 'dark' ? 'Escuro' : 'Claro',
       icon: mode === 'dark' ? 'moon' : 'sunny',
