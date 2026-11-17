@@ -83,3 +83,18 @@ dados e dos componentes compartilhados:
 - `src/types/`: tipos TypeScript compartilhados;
 - `assets/`: icones e imagens configuradas pelo Expo;
 - `scripts/`: verificacoes automatizadas auxiliares.
+
+## Requisitos
+
+Antes de executar o projeto, prepare o ambiente com:
+
+- Node.js e npm compativeis com o Expo SDK 57;
+- Python 3 para executar a verificacao automatizada do SQLite;
+- Git para obter e gerenciar o repositorio;
+- Android Studio e um emulador Android, ou Expo Go em um dispositivo Android;
+- macOS com Xcode para executar o app em simulador iOS;
+- um navegador moderno para executar a versao web;
+- conexao com a internet para carregar puzzles da API do Lichess.
+
+O arquivo `package-lock.json` registra as dependencias do projeto JavaScript e deve
+ser utilizado para restaurar as versoes definidas pelo lockfile.
