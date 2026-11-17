@@ -250,6 +250,47 @@ def test_database(database_path: Path) -> None:
         assert connection.execute(
             "SELECT value FROM settings WHERE key = 'active_match_state'"
         ).fetchone()[0] != ""
+
+        connection.execute("DELETE FROM ranking_players")
+        connection.execute(
+            """
+            INSERT INTO ranking_players (
+                name, points, matches, wins, losses, draws,
+                tier, is_user, position_change
+            ) VALUES (?, 100, 1, 1, 0, 0, 'Bronze', 0, 0)
+            """,
+            ("Jogador Empatado A",),
+        )
+        connection.execute(
+            """
+            INSERT INTO ranking_players (
+                name, points, matches, wins, losses, draws,
+                tier, is_user, position_change
+            ) VALUES (?, 100, 1, 1, 0, 0, 'Bronze', 1, 0)
+            """,
+            ("Jogador Usuario",),
+        )
+        connection.execute(
+            """
+            INSERT INTO ranking_players (
+                name, points, matches, wins, losses, draws,
+                tier, is_user, position_change
+            ) VALUES (?, 100, 1, 1, 0, 0, 'Bronze', 0, 0)
+            """,
+            ("Jogador Empatado B",),
+        )
+        connection.commit()
+
+        ordered = connection.execute(
+            "SELECT name FROM ranking_players ORDER BY points DESC, id ASC"
+        ).fetchall()
+        assert [row[0] for row in ordered] == [
+            "Jogador Empatado A",
+            "Jogador Usuario",
+            "Jogador Empatado B",
+        ]
+        user_index = [row[0] for row in ordered].index("Jogador Usuario")
+        assert user_index + 1 == 2
     finally:
         connection.close()
 

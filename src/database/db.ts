@@ -396,19 +396,14 @@ export function getUserRankingPosition(): { rank: number; points: number; total:
     const db = getDatabase();
     syncUserInRanking(db);
 
-    const userRow = db.getFirstSync<{ points: number }>(
-      'SELECT points FROM ranking_players WHERE is_user = 1'
+    const orderedRows = db.getAllSync<{ id: number; points: number; is_user: number }>(
+      'SELECT id, points, is_user FROM ranking_players ORDER BY points DESC, id ASC'
     );
+    const userIndex = orderedRows.findIndex((row) => row.is_user === 1);
+    const userRow = userIndex >= 0 ? orderedRows[userIndex] : null;
     const userPoints = userRow?.points ?? 0;
-
-    const rankRow = db.getFirstSync<{ count: number }>(
-      'SELECT COUNT(*) as count FROM ranking_players WHERE points > ?',
-      [userPoints]
-    );
-    const userRank = (rankRow?.count ?? 0) + 1;
-
-    const totalRow = db.getFirstSync<{ count: number }>('SELECT COUNT(*) as count FROM ranking_players');
-    const total = totalRow?.count ?? 1000;
+    const userRank = userIndex >= 0 ? userIndex + 1 : 1;
+    const total = orderedRows.length;
 
     return { rank: userRank, points: userPoints, total };
   } catch (err) {
