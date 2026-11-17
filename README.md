@@ -191,3 +191,24 @@ valida os campos esperados e rejeita dados malformados.
 A versao atual da estrutura e registrada em `settings.database_schema_version` e no
 `PRAGMA user_version` do banco. A verificacao automatizada esta em `scripts/verify_sqlite.py`
 e pode ser executada por `npm run test:sqlite`.
+
+## Créditos
+
+O WinXadrez utiliza recursos e bibliotecas de:
+
+- Expo e React Native;
+- `chess.js`;
+- Expo SQLite;
+- API pública de puzzles do Lichess;
+- Ionicons, disponibilizados por `@expo/vector-icons`.
+
+O projeto não possui uma lista oficial de autores cadastrada nesta documentação.
+Dados adicionais devem ser definidos pelo responsável pelo repositório.
+
+## Licença
+
+Este repositório inclui um arquivo `LICENSE`, mas o conteúdo atual corresponde à
+licença MIT da base Expo/650 Industries. Ele não identifica uma licença própria
+autorizada para o WinXadrez. Antes de distribuir o projeto, o responsável deve
+confirmar os direitos autorais e aplicar uma licença compatível com o código e os
+recursos utilizados.
