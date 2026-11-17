@@ -55,3 +55,31 @@ O aplicativo busca oferecer:
 - os puzzles diarios dependem da API do Lichess quando nao existe uma copia em cache;
 - a disponibilidade das partidas, ranking e configuracoes depende do SQLite local;
 - o projeto nao inclui sincronizacao de contas ou dados entre dispositivos.
+
+## Tecnologias
+
+- Expo 57;
+- React 19;
+- React Native 0.86;
+- Expo Router para navegacao por arquivos;
+- TypeScript em modo strict;
+- `chess.js` para representacao e validacao das partidas;
+- `expo-sqlite` para persistencia local;
+- API publica de puzzles do Lichess;
+- Ionicons por meio de `@expo/vector-icons`.
+
+## Arquitetura
+
+O projeto utiliza uma estrutura baseada em Expo Router e separa as telas da logica de
+dados e dos componentes compartilhados:
+
+- `app/`: rotas e layout principal da aplicacao;
+- `src/screens/`: telas exibidas pelo aplicativo;
+- `src/components/`: componentes reutilizaveis;
+- `src/context/`: contextos compartilhados, como o tema;
+- `src/database/`: inicializacao e operacoes do SQLite;
+- `src/data/`: dados locais e geracao do ranking;
+- `src/services/`: integracoes externas;
+- `src/types/`: tipos TypeScript compartilhados;
+- `assets/`: icones e imagens configuradas pelo Expo;
+- `scripts/`: verificacoes automatizadas auxiliares.
