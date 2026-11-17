@@ -1,5 +1,6 @@
 import * as SQLite from 'expo-sqlite';
 import { generate1000RankingBots } from '../data/rankingBots';
+import type { PuzzleSpec } from '../types/puzzle';
 
 export type SkillLevel = 'Não sei jogar' | 'Sei o básico' | 'Sou bom';
 
@@ -695,4 +696,74 @@ export function resetLossesAndCache(): void {
   } catch (err) {
     console.error('Erro ao resetar derrotas e cache:', err);
   }
+}
+
+export interface CachedDailyPuzzleRecord {
+  date: string;
+  puzzle: PuzzleSpec;
+}
+
+export interface PuzzleProgress {
+  streak: number;
+  solvedIds: string[];
+}
+
+export function getLocalDateKey(): string {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+export function getCachedDailyPuzzle(): CachedDailyPuzzleRecord | null {
+  try {
+    const raw = getSetting('cached_daily_puzzle', '');
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as CachedDailyPuzzleRecord;
+    if (!parsed?.puzzle?.id || !parsed?.puzzle?.fen) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+export function saveCachedDailyPuzzle(puzzle: PuzzleSpec): void {
+  try {
+    const payload: CachedDailyPuzzleRecord = {
+      date: getLocalDateKey(),
+      puzzle,
+    };
+    setSetting('cached_daily_puzzle', JSON.stringify(payload));
+  } catch (err) {
+    console.error('Erro ao salvar cache do puzzle diário:', err);
+  }
+}
+
+export function getPuzzleProgress(): PuzzleProgress {
+  try {
+    const raw = getSetting('puzzle_progress', '');
+    if (!raw) return { streak: 0, solvedIds: [] };
+    const parsed = JSON.parse(raw) as Partial<PuzzleProgress>;
+    return {
+      streak: typeof parsed.streak === 'number' ? parsed.streak : 0,
+      solvedIds: Array.isArray(parsed.solvedIds) ? parsed.solvedIds : [],
+    };
+  } catch {
+    return { streak: 0, solvedIds: [] };
+  }
+}
+
+export function recordPuzzleSolved(puzzleId: string): PuzzleProgress {
+  const current = getPuzzleProgress();
+  if (current.solvedIds.includes(puzzleId)) {
+    return current;
+  }
+
+  const next: PuzzleProgress = {
+    streak: current.streak + 1,
+    solvedIds: [...current.solvedIds.slice(-99), puzzleId],
+  };
+  setSetting('puzzle_progress', JSON.stringify(next));
+  return next;
 }
