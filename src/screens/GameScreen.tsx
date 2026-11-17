@@ -158,6 +158,11 @@ export default function GameScreen() {
   const [isBotThinking, setIsBotThinking] = useState(false);
   const [difficulty, setDifficulty] = useState<GameDifficulty>(() => (params.difficulty as GameDifficulty) || 'Médio');
   const [settingsModalVisible, setSettingsModalVisible] = useState(false);
+  const [promotionSelection, setPromotionSelection] = useState<{
+    from: Square;
+    to: Square;
+    color: Color;
+  } | null>(null);
 
   // Resume or Restart dialog modal state
   const [showResumeModal, setShowResumeModal] = useState(false);
@@ -597,6 +602,54 @@ export default function GameScreen() {
     }, 420);
   };
 
+  const commitPromotion = (promotion: 'q' | 'r' | 'b' | 'n') => {
+    if (!promotionSelection) return;
+
+    const currentGame = gameRef.current;
+    const currentMode = gameModeRef.current;
+    const movingPiece = currentGame.get(promotionSelection.from);
+    if (!movingPiece) {
+      setPromotionSelection(null);
+      return;
+    }
+
+    animateAndCommitMove(
+      promotionSelection.from,
+      promotionSelection.to,
+      movingPiece,
+      () => {
+        try {
+          currentGame.move({
+            from: promotionSelection.from,
+            to: promotionSelection.to,
+            promotion,
+          });
+          setFen(currentGame.fen());
+          setLastMove({
+            from: promotionSelection.from,
+            to: promotionSelection.to,
+          });
+
+          if (currentMode === 'bot') {
+            setBlackTime(120);
+            if (!currentGame.isGameOver()) {
+              triggerBotMove(currentGame);
+            } else {
+              checkGameOverState(currentGame);
+            }
+          } else {
+            if (movingPiece.color === 'w') setBlackTime(120);
+            else setWhiteTime(120);
+            if (currentGame.isGameOver()) checkGameOverState(currentGame);
+          }
+        } catch {
+          setTurnNotice('Não foi possível executar a promoção.');
+        }
+        setPromotionSelection(null);
+      }
+    );
+  };
+
   // Handle square tap by user com referência estável para 60 FPS absoluto
   const handleSquarePress = useCallback(
     (square: Square) => {
@@ -630,6 +683,15 @@ export default function GameScreen() {
 
           const fromSq = currentSelected;
           setSelectedSquare(null);
+
+          if (legalMove.promotion) {
+            setPromotionSelection({
+              from: fromSq,
+              to: square,
+              color: movingPiece.color,
+            });
+            return;
+          }
 
           // Animate piece move smoothly at 60 FPS
           animateAndCommitMove(fromSq, square, movingPiece, () => {
@@ -1421,6 +1483,49 @@ export default function GameScreen() {
                   Reiniciar Partida
                 </Text>
               </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Seleção da peça da promoção */}
+      <Modal
+        visible={promotionSelection !== null}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setPromotionSelection(null)}
+      >
+        <View style={styles.modalBackdrop}>
+          <View style={[styles.settingsBox, { backgroundColor: colors.surface, borderColor: colors.borderStrong }]}>
+            <Text style={[styles.settingsTitle, { color: colors.text, marginBottom: 16 }]}>
+              Escolha a promoção
+            </Text>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', width: '100%' }}>
+              {([
+                ['q', 'Dama'],
+                ['r', 'Torre'],
+                ['b', 'Bispo'],
+                ['n', 'Cavalo'],
+              ] as const).map(([piece, label]) => (
+                <Pressable
+                  key={piece}
+                  onPress={() => commitPromotion(piece)}
+                  style={{
+                    width: 68,
+                    alignItems: 'center',
+                    paddingVertical: 12,
+                    borderRadius: 12,
+                    backgroundColor: colors.cardSecondary,
+                    borderWidth: 1,
+                    borderColor: colors.border,
+                  }}
+                >
+                  <Text style={{ fontSize: 34, color: promotionSelection?.color === 'w' ? '#ffffff' : '#111111' }}>
+                    {pieceSymbols[promotionSelection?.color ?? 'w'][piece]}
+                  </Text>
+                  <Text style={{ marginTop: 4, color: colors.textSecondary, fontSize: 12 }}>{label}</Text>
+                </Pressable>
+              ))}
             </View>
           </View>
         </View>
