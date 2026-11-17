@@ -6,6 +6,7 @@ import {
   StyleSheet,
   Text,
   TouchableOpacity,
+  useWindowDimensions,
   View,
 } from 'react-native';
 import { useRouter } from 'expo-router';
@@ -89,6 +90,10 @@ export default function PuzzleScreen() {
   const router = useRouter();
   const { colors } = useAppTheme();
   const insets = useSafeAreaInsets();
+  const { width: windowWidth } = useWindowDimensions();
+
+  const squareSize = Math.floor(Math.min(windowWidth - 64, 344) / 8);
+  const boardSize = squareSize * 8;
 
   const initialCache = useMemo(() => getCachedDailyPuzzle(), []);
   const initialProgress = useMemo(() => getPuzzleProgress(), []);
@@ -128,7 +133,7 @@ export default function PuzzleScreen() {
   );
   const [solutionIndex, setSolutionIndex] = useState(0);
   const [isOpponentThinking, setIsOpponentThinking] = useState(false);
-  const [isSolved, setIsSolved] = useState(() => solvedIds.includes(activePuzzle.id));
+  const [isSolved, setIsSolved] = useState(false);
   const [hintVisible, setHintVisible] = useState(false);
   const [attempts, setAttempts] = useState(0);
   const [feedbackError, setFeedbackError] = useState<string | null>(null);
@@ -147,21 +152,18 @@ export default function PuzzleScreen() {
     return () => clearPendingReply();
   }, []);
 
-  const applyPuzzleToBoard = useCallback(
-    (puzzle: PuzzleSpec, currentSolvedIds: string[]) => {
-      clearPendingReply();
-      setIsOpponentThinking(false);
-      setGame(new Chess(puzzle.fen));
-      setSelectedSquare(null);
-      setLastMove(puzzle.initialLastMove ?? null);
-      setSolutionIndex(0);
-      setIsSolved(currentSolvedIds.includes(puzzle.id));
-      setHintVisible(false);
-      setAttempts(0);
-      setFeedbackError(null);
-    },
-    []
-  );
+  const applyPuzzleToBoard = useCallback((puzzle: PuzzleSpec) => {
+    clearPendingReply();
+    setIsOpponentThinking(false);
+    setGame(new Chess(puzzle.fen));
+    setSelectedSquare(null);
+    setLastMove(puzzle.initialLastMove ?? null);
+    setSolutionIndex(0);
+    setIsSolved(false);
+    setHintVisible(false);
+    setAttempts(0);
+    setFeedbackError(null);
+  }, []);
 
   const loadDailyFromApi = useCallback(
     async (forceSelect: boolean) => {
@@ -174,7 +176,7 @@ export default function PuzzleScreen() {
 
         if (forceSelect || !hasInteractedRef.current) {
           setSelectedPuzzleId(fetched.id);
-          applyPuzzleToBoard(fetched, getPuzzleProgress().solvedIds);
+          applyPuzzleToBoard(fetched);
         }
       } catch {
         setApiStatusNote(
@@ -207,7 +209,7 @@ export default function PuzzleScreen() {
       const next = await fetchNextPuzzle();
       setRandomPuzzle(next);
       setSelectedPuzzleId(next.id);
-      applyPuzzleToBoard(next, solvedIds);
+      applyPuzzleToBoard(next);
       setApiStatusNote('Novo desafio carregado do Lichess');
     } catch {
       Alert.alert(
@@ -231,23 +233,14 @@ export default function PuzzleScreen() {
 
   const resetPuzzle = (puzzleId = selectedPuzzleId) => {
     const nextPuzzle = allPuzzles.find((puzzle) => puzzle.id === puzzleId) ?? allPuzzles[0];
-    clearPendingReply();
-    setIsOpponentThinking(false);
-    setGame(new Chess(nextPuzzle.fen));
-    setSelectedSquare(null);
-    setLastMove(nextPuzzle.initialLastMove ?? null);
-    setSolutionIndex(0);
-    setIsSolved(false);
-    setHintVisible(false);
-    setAttempts(0);
-    setFeedbackError(null);
+    applyPuzzleToBoard(nextPuzzle);
   };
 
   const handleSelectPuzzle = (puzzleId: string) => {
     hasInteractedRef.current = true;
     const target = allPuzzles.find((puzzle) => puzzle.id === puzzleId) ?? allPuzzles[0];
     setSelectedPuzzleId(puzzleId);
-    applyPuzzleToBoard(target, solvedIds);
+    applyPuzzleToBoard(target);
   };
 
   const handleSquarePress = (square: Square) => {
@@ -257,6 +250,11 @@ export default function PuzzleScreen() {
     const current = new Chess(game.fen());
 
     if (selectedSquare) {
+      if (selectedSquare === square) {
+        setSelectedSquare(null);
+        return;
+      }
+
       const candidate = current.moves({ square: selectedSquare, verbose: true }).find((move) => move.to === square);
 
       if (candidate) {
@@ -324,8 +322,17 @@ export default function PuzzleScreen() {
 
       const piece = current.get(square);
       if (piece && piece.color === current.turn()) {
+        setFeedbackError(null);
         setSelectedSquare(square);
         return;
+      }
+
+      if (piece && piece.color !== current.turn()) {
+        setFeedbackError(
+          current.turn() === 'w'
+            ? 'Este desafio é com as peças Brancas!'
+            : 'Este desafio é com as peças Pretas!'
+        );
       }
 
       setSelectedSquare(null);
@@ -334,7 +341,17 @@ export default function PuzzleScreen() {
 
     const piece = current.get(square);
     if (piece && piece.color === current.turn()) {
+      setFeedbackError(null);
       setSelectedSquare(square);
+      return;
+    }
+
+    if (piece && piece.color !== current.turn()) {
+      setFeedbackError(
+        current.turn() === 'w'
+          ? 'Você joga com as Brancas — toque em uma peça branca.'
+          : 'Você joga com as Pretas — toque em uma peça preta.'
+      );
     }
   };
 
@@ -349,17 +366,22 @@ export default function PuzzleScreen() {
 
   const handleReset = () => {
     resetPuzzle();
-    Alert.alert('Quebra-cabeça reiniciado', `Nova tentativa: ${activePuzzle.objective}`);
   };
 
   const renderBoard = () => {
     const rawBoard = game.board();
     const mappedRows = rawBoard.map((row, rowIndex) =>
-      row.map((piece, colIndex) => ({
-        piece,
-        square: `${files[colIndex]}${8 - rowIndex}` as Square,
-        isDark: (rowIndex + colIndex) % 2 === 1,
-      }))
+      row.map((piece, colIndex) => {
+        const file = files[colIndex];
+        const rank = String(8 - rowIndex);
+        return {
+          piece,
+          square: `${file}${rank}` as Square,
+          file,
+          rank,
+          isDark: (rowIndex + colIndex) % 2 === 1,
+        };
+      })
     );
 
     const displayedRows =
@@ -370,12 +392,16 @@ export default function PuzzleScreen() {
     const currentExpected = activePuzzle.solutionMoves[solutionIndex];
 
     return displayedRows.map((row, rowIndex) => (
-      <View key={`row-${rowIndex}`} style={styles.boardRow}>
-        {row.map(({ piece, square, isDark }) => {
+      <View key={`row-${rowIndex}`} style={[styles.boardRow, { width: boardSize, height: squareSize }]}>
+        {row.map(({ piece, square, file, rank, isDark }, colIndex) => {
           const isSelected = selectedSquare === square;
           const isTarget = legalTargets.includes(square);
           const isLastMoveSquare = lastMove?.from === square || lastMove?.to === square;
-          const isHintSquare = hintVisible && !isSolved && currentExpected?.from === square;
+          const isHintFrom = hintVisible && !isSolved && currentExpected?.from === square;
+          const isHintTo = hintVisible && !isSolved && currentExpected?.to === square;
+          const showRankLabel = colIndex === 0;
+          const showFileLabel = rowIndex === 7;
+          const coordColor = isDark ? colors.boardLight : colors.boardDark;
 
           return (
             <TouchableOpacity
@@ -385,21 +411,63 @@ export default function PuzzleScreen() {
               style={[
                 styles.square,
                 {
+                  width: squareSize,
+                  height: squareSize,
                   backgroundColor: isDark ? colors.boardDark : colors.boardLight,
                 },
-                isLastMoveSquare && { backgroundColor: colors.boardLastMove },
-                isHintSquare && { borderWidth: 2, borderColor: colors.accent },
-                isSelected && { borderWidth: 2, borderColor: colors.boardSelected },
               ]}
             >
-              {isTarget && !piece && <View style={styles.emptyTargetDot} />}
-              {isTarget && piece && <View style={styles.captureRing} />}
+              {(isLastMoveSquare || isSelected || isHintFrom || isHintTo) && (
+                <View
+                  pointerEvents="none"
+                  style={[
+                    StyleSheet.absoluteFill,
+                    isLastMoveSquare && {
+                      backgroundColor: isDark
+                        ? 'rgba(205, 210, 106, 0.45)'
+                        : 'rgba(245, 246, 130, 0.45)',
+                    },
+                    isSelected && {
+                      backgroundColor: isDark
+                        ? 'rgba(186, 202, 68, 0.65)'
+                        : 'rgba(247, 247, 105, 0.65)',
+                    },
+                    (isHintFrom || isHintTo) && {
+                      borderWidth: 2.5,
+                      borderColor: isHintFrom ? colors.accent : colors.primary,
+                    },
+                  ]}
+                />
+              )}
+
+              {showRankLabel && (
+                <Text pointerEvents="none" style={[styles.coordRank, { color: coordColor }]}>
+                  {rank}
+                </Text>
+              )}
+              {showFileLabel && (
+                <Text pointerEvents="none" style={[styles.coordFile, { color: coordColor }]}>
+                  {file}
+                </Text>
+              )}
+
+              {isTarget && !piece && <View pointerEvents="none" style={styles.emptyTargetDot} />}
+              {isTarget && piece && (
+                <View
+                  pointerEvents="none"
+                  style={[
+                    styles.captureRing,
+                    { width: squareSize * 0.86, height: squareSize * 0.86 },
+                  ]}
+                />
+              )}
 
               {piece && (
                 <Text
                   style={[
                     styles.pieceText,
                     piece.color === 'b' ? styles.pieceBlack : styles.pieceWhite,
+                    { fontSize: Math.floor(squareSize * 0.72), zIndex: 3 },
                   ]}
                 >
                   {pieceSymbols[piece.color][piece.type]}
@@ -414,6 +482,7 @@ export default function PuzzleScreen() {
 
   const totalPlayerMoves = Math.max(1, Math.ceil(activePuzzle.solutionMoves.length / 2));
   const completedPlayerMoves = Math.min(totalPlayerMoves, Math.floor(solutionIndex / 2));
+  const previouslySolved = solvedIds.includes(activePuzzle.id);
 
   return (
     <View
@@ -456,10 +525,41 @@ export default function PuzzleScreen() {
               <View style={[styles.difficultyDot, { backgroundColor: activePuzzle.color }]} />
               <Text style={[styles.difficultyText, { color: activePuzzle.color }]}>{activePuzzle.level.toUpperCase()}</Text>
             </View>
-            <Text style={[styles.streakText, { color: colors.accent }]}>Série: {streak} 🔥</Text>
+            <View style={styles.topRightBadges}>
+              <View
+                style={[
+                  styles.turnPill,
+                  {
+                    backgroundColor: boardOrientation === 'w' ? '#f8fafc' : '#1e293b',
+                    borderColor: colors.borderStrong,
+                  },
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.turnPillText,
+                    { color: boardOrientation === 'w' ? '#0f172a' : '#f8fafc' },
+                  ]}
+                >
+                  {isOpponentThinking
+                    ? 'Aguarde...'
+                    : boardOrientation === 'w'
+                    ? '♔ Brancas jogam'
+                    : '♚ Pretas jogam'}
+                </Text>
+              </View>
+              <Text style={[styles.streakText, { color: colors.accent }]}>Série: {streak} 🔥</Text>
+            </View>
           </View>
 
-          <View style={[styles.boardPreview, { borderColor: colors.borderStrong }]}>{renderBoard()}</View>
+          <View
+            style={[
+              styles.boardPreview,
+              { width: boardSize + 2, borderColor: colors.borderStrong },
+            ]}
+          >
+            {renderBoard()}
+          </View>
 
           <View style={styles.heroCopy}>
             <Text style={[styles.heroKicker, { color: activePuzzle.color }]}>
@@ -487,10 +587,24 @@ export default function PuzzleScreen() {
               <Text style={[styles.hintText, { color: colors.accent }]}>Dica: {activePuzzle.hint}</Text>
             )}
 
-            {isSolved && (
-              <View style={[styles.successBadge, { backgroundColor: `${colors.primary}20`, borderColor: colors.primary }]}>
-                <Ionicons name="checkmark-circle" size={16} color={colors.primary} />
-                <Text style={[styles.successText, { color: colors.primary }]}>Puzzle resolvido</Text>
+            {(isSolved || previouslySolved) && (
+              <View style={styles.solvedRow}>
+                <View style={[styles.successBadge, { backgroundColor: `${colors.primary}20`, borderColor: colors.primary }]}>
+                  <Ionicons name="checkmark-circle" size={16} color={colors.primary} />
+                  <Text style={[styles.successText, { color: colors.primary }]}>
+                    {isSolved ? 'Puzzle resolvido!' : 'Já concluído (jogue novamente)'}
+                  </Text>
+                </View>
+                {isSolved && (
+                  <TouchableOpacity
+                    style={[styles.replayPillBtn, { backgroundColor: colors.primary }]}
+                    activeOpacity={0.8}
+                    onPress={handleReset}
+                  >
+                    <Ionicons name="refresh" size={14} color="#ffffff" />
+                    <Text style={styles.replayPillBtnText}>Repetir</Text>
+                  </TouchableOpacity>
+                )}
               </View>
             )}
           </View>
@@ -643,7 +757,24 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    flexWrap: 'wrap',
     marginBottom: 14,
+    gap: 8,
+  },
+  topRightBadges: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  turnPill: {
+    paddingHorizontal: 9,
+    paddingVertical: 4,
+    borderRadius: 999,
+    borderWidth: 1,
+  },
+  turnPillText: {
+    fontSize: 10,
+    fontWeight: '800',
   },
   difficultyBadge: {
     flexDirection: 'row',
@@ -668,45 +799,61 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
   boardPreview: {
-    width: 320,
     alignSelf: 'center',
     borderWidth: 1,
-    borderRadius: 16,
+    borderRadius: 14,
     overflow: 'hidden',
     marginBottom: 16,
   },
   boardRow: {
     flexDirection: 'row',
-    width: '100%',
   },
   square: {
-    width: '12.5%',
-    aspectRatio: 1,
     alignItems: 'center',
     justifyContent: 'center',
     position: 'relative',
+    overflow: 'hidden',
+  },
+  coordRank: {
+    position: 'absolute',
+    top: 2,
+    left: 3,
+    fontSize: 9,
+    fontWeight: '800',
+    opacity: 0.8,
+    zIndex: 2,
+  },
+  coordFile: {
+    position: 'absolute',
+    bottom: 1,
+    right: 3,
+    fontSize: 9,
+    fontWeight: '800',
+    opacity: 0.8,
+    zIndex: 2,
   },
   emptyTargetDot: {
+    position: 'absolute',
     width: 12,
     height: 12,
     borderRadius: 6,
-    backgroundColor: 'rgba(0,0,0,0.22)',
+    backgroundColor: 'rgba(0,0,0,0.25)',
+    zIndex: 4,
   },
   captureRing: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    borderWidth: 3,
-    borderColor: 'rgba(0,0,0,0.24)',
+    position: 'absolute',
+    borderRadius: 999,
+    borderWidth: 3.5,
+    borderColor: 'rgba(0,0,0,0.25)',
+    zIndex: 4,
   },
   pieceText: {
     fontWeight: '900',
-    fontSize: 24,
     textAlign: 'center',
     includeFontPadding: false,
   },
   pieceBlack: {
-    color: '#0f172a',
+    color: '#1a1a1a',
   },
   pieceWhite: {
     color: '#ffffff',
@@ -755,6 +902,13 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '700',
   },
+  solvedRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 6,
+  },
   successBadge: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -764,9 +918,21 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     borderRadius: 999,
     borderWidth: 1,
-    marginTop: 6,
   },
   successText: {
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  replayPillBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+  },
+  replayPillBtnText: {
+    color: '#ffffff',
     fontSize: 12,
     fontWeight: '800',
   },
