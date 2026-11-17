@@ -258,6 +258,7 @@ export default function PuzzleScreen() {
       const candidate = current.moves({ square: selectedSquare, verbose: true }).find((move) => move.to === square);
 
       if (candidate) {
+        const previousFen = current.fen();
         const expectedMove = activePuzzle.solutionMoves[solutionIndex];
         const promotionChoice = expectedMove?.promotion ?? 'q';
         const appliedMove = current.move({
@@ -304,17 +305,32 @@ export default function PuzzleScreen() {
         const opponentMove = activePuzzle.solutionMoves[nextIndex];
         setIsOpponentThinking(true);
         replyTimeoutRef.current = setTimeout(() => {
+          replyTimeoutRef.current = null;
           const afterReply = new Chess(current.fen());
+          if (!opponentMove) {
+            setGame(new Chess(previousFen));
+            setSolutionIndex(solutionIndex);
+            setFeedbackError('A resposta do puzzle não está configurada. Tente outro desafio.');
+            setIsOpponentThinking(false);
+            return;
+          }
+
           const reply = afterReply.move({
             from: opponentMove.from,
             to: opponentMove.to,
             promotion: opponentMove.promotion ?? 'q',
           });
-          if (reply) {
-            setGame(afterReply);
-            setLastMove({ from: opponentMove.from, to: opponentMove.to });
-            setSolutionIndex(nextIndex + 1);
+          if (!reply) {
+            setGame(new Chess(previousFen));
+            setSolutionIndex(solutionIndex);
+            setFeedbackError('A sequência deste puzzle está inválida. Tente outro desafio.');
+            setIsOpponentThinking(false);
+            return;
           }
+
+          setGame(afterReply);
+          setLastMove({ from: opponentMove.from, to: opponentMove.to });
+          setSolutionIndex(nextIndex + 1);
           setIsOpponentThinking(false);
         }, 350);
         return;
