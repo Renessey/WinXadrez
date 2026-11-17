@@ -123,3 +123,34 @@ npx expo --version
 O comando `npm ci` remove uma instalacao anterior do diretório `node_modules` e cria
 uma nova instalacao exatamente conforme `package-lock.json`. Caso as dependencias ainda
 tenham sido restauradas, altere o manifesto ou o lockfile somente quando necessario.
+
+## Execucao
+
+Inicie o servidor de desenvolvimento Expo:
+
+```bash
+npm start
+```
+
+Abra a versao em uma plataforma especifica:
+
+```bash
+npm run android
+npm run ios
+npm run web
+```
+
+No terminal do Expo, use o codigo QR exibido para abrir o aplicativo em Expo Go ou
+selecione o emulador/simulador configurado no ambiente.
+
+Para validar a estrutura e a persistencia SQLite:
+
+```bash
+npm run test:sqlite
+```
+
+Para executar a verificacao TypeScript sem gerar arquivos:
+
+```bash
+npm run typecheck
+```
