@@ -13,10 +13,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import {
   getProfile,
-  getSetting,
   getUserLevels,
   resetLossesAndCache,
-  setSetting,
   updateProfileName,
   UserLevelsSummary,
   UserProfile,
@@ -32,7 +30,6 @@ export default function ProfileScreen() {
 
   const [draftName, setDraftName] = useState('');
   const [isEditingName, setIsEditingName] = useState(false);
-  const [notificationsEnabled, setNotificationsEnabled] = useState(true);
 
   const loadData = () => {
     const p = getProfile();
@@ -41,8 +38,6 @@ export default function ProfileScreen() {
       setDraftName(p.name);
     }
     setLevels(getUserLevels());
-    const notifSetting = getSetting('notifications', 'true');
-    setNotificationsEnabled(notifSetting === 'true');
   };
 
   useEffect(() => {
@@ -69,12 +64,6 @@ export default function ProfileScreen() {
     } else {
       Alert.alert('Atenção', 'O nome deve ter pelo menos 2 caracteres.');
     }
-  };
-
-  const handleToggleNotifications = () => {
-    const next = !notificationsEnabled;
-    setNotificationsEnabled(next);
-    setSetting('notifications', next ? 'true' : 'false');
   };
 
   const handleResetLossesAndCache = () => {
@@ -115,13 +104,6 @@ export default function ProfileScreen() {
       icon: mode === 'dark' ? 'moon' : 'sunny',
       iconColor: colors.accent,
       onPress: toggleTheme,
-    },
-    {
-      label: 'Notificações de partida',
-      value: notificationsEnabled ? 'Ativadas' : 'Desativadas',
-      icon: notificationsEnabled ? 'notifications' : 'notifications-off',
-      iconColor: colors.primary,
-      onPress: handleToggleNotifications,
     },
     {
       label: 'Zerar derrotas e cache',

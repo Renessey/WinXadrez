@@ -2,8 +2,6 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Alert,
   Animated,
-  AppState,
-  AppStateStatus,
   Easing,
   Modal,
   Pressable,
@@ -28,7 +26,6 @@ import {
   UserProfile,
 } from '../database/db';
 import { useAppTheme } from '../context/ThemeContext';
-import { cancelGameNotifications, notifyGameInProgress } from '../services/notifications';
 import { getRandomBotName } from '../data/botNames';
 
 const files = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
@@ -263,28 +260,6 @@ export default function GameScreen() {
     }
   }, [fen, whiteTime, blackTime, difficulty, lastMove, botName, gameMode]);
 
-  // Limpeza ao desmontar tela
-  useEffect(() => {
-    return () => {
-      cancelGameNotifications();
-    };
-  }, []);
-
-  // Background notifications on app background during an active match
-  useEffect(() => {
-    const subscription = AppState.addEventListener('change', (nextAppState: AppStateStatus) => {
-      if (nextAppState.match(/inactive|background/)) {
-        if (!game.isGameOver() && game.history().length > 0) {
-          notifyGameInProgress(botName);
-        }
-      }
-    });
-
-    return () => {
-      subscription.remove();
-    };
-  }, [game, botName]);
-
   const board = useMemo(() => game.board(), [fen, game]);
 
   const legalTargets = useMemo(
@@ -328,7 +303,6 @@ export default function GameScreen() {
 
   const resetGame = (newMode?: 'bot' | 'pvp') => {
     clearActiveMatch();
-    cancelGameNotifications();
     const nextGame = new Chess();
     setGame(nextGame);
     setFen(nextGame.fen());
@@ -457,7 +431,6 @@ export default function GameScreen() {
       if (matchRecordedRef.current) return;
       matchRecordedRef.current = true;
       clearActiveMatch();
-      cancelGameNotifications();
 
       const totalMoves = currentGame.history().length;
 
@@ -910,7 +883,6 @@ export default function GameScreen() {
           onPress: () => {
             matchRecordedRef.current = true;
             clearActiveMatch();
-            cancelGameNotifications();
             const matchRes = recordMatchResult('Derrota', 0, difficulty, game.history().length, botName);
             setLevels(getUserLevels());
             setGameOverModal({
@@ -961,7 +933,6 @@ export default function GameScreen() {
           if (difficulty === 'Fácil' || Math.random() < 0.65) {
             matchRecordedRef.current = true;
             clearActiveMatch();
-            cancelGameNotifications();
             recordMatchResult('Empate', 0, difficulty, game.history().length, botName);
             setLevels(getUserLevels());
             setGameOverModal({
