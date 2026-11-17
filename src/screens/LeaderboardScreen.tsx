@@ -8,17 +8,15 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { RootStackParamList } from '../types/navigation';
 import { getRanking, RankingPlayerItem } from '../database/db';
 import { useAppTheme } from '../context/ThemeContext';
 
-type Props = NativeStackScreenProps<RootStackParamList, 'Leaderboard'>;
-
 type FilterTab = 'top' | 'nearUser';
 
-export default function LeaderboardScreen({ navigation }: Props) {
+export default function LeaderboardScreen() {
+  const router = useRouter();
   const { colors } = useAppTheme();
   const insets = useSafeAreaInsets();
   const [selectedFilter, setSelectedFilter] = useState<FilterTab>('top');
@@ -40,11 +38,9 @@ export default function LeaderboardScreen({ navigation }: Props) {
 
   useEffect(() => {
     loadData();
-    const unsub = navigation.addListener('focus', () => {
-      loadData();
-    });
-    return unsub;
-  }, [navigation, loadData]);
+  }, [loadData]);
+
+  useFocusEffect(loadData);
 
   const handleLoadMore = () => {
     setDisplayLimit((prev) => prev + 15);
@@ -62,7 +58,7 @@ export default function LeaderboardScreen({ navigation }: Props) {
         <TouchableOpacity
           style={styles.backButtonTop}
           activeOpacity={0.7}
-          onPress={() => navigation.goBack()}
+          onPress={() => router.back()}
         >
           <Ionicons name="arrow-back" size={24} color={colors.text} />
         </TouchableOpacity>

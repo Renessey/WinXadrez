@@ -14,10 +14,9 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Chess, Color, Move, PieceSymbol, Square } from 'chess.js';
-import { RootStackParamList } from '../types/navigation';
 import {
   clearActiveMatch,
   getActiveMatch,
@@ -31,8 +30,6 @@ import {
 import { useAppTheme } from '../context/ThemeContext';
 import { cancelGameNotifications, notifyGameInProgress } from '../services/notifications';
 import { getRandomBotName } from '../data/botNames';
-
-type Props = NativeStackScreenProps<RootStackParamList, 'Game'>;
 
 const files = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
 
@@ -139,12 +136,14 @@ const SquareCell = React.memo(function SquareCell({
   );
 });
 
-export default function GameScreen({ navigation, route }: Props) {
+export default function GameScreen() {
+  const router = useRouter();
+  const params = useLocalSearchParams<{ mode?: 'bot' | 'pvp'; difficulty?: 'Fácil' | 'Médio' | 'Difícil' }>();
   const { colors, mode } = useAppTheme();
   const insets = useSafeAreaInsets();
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
 
-  const initialMode: 'bot' | 'pvp' = route.params?.mode === 'pvp' ? 'pvp' : 'bot';
+  const initialMode: 'bot' | 'pvp' = params.mode === 'pvp' ? 'pvp' : 'bot';
   const [gameMode, setGameMode] = useState<'bot' | 'pvp'>(initialMode);
   const gameModeRef = useRef(gameMode);
   gameModeRef.current = gameMode;
@@ -160,7 +159,7 @@ export default function GameScreen({ navigation, route }: Props) {
   const [selectedSquare, setSelectedSquare] = useState<Square | null>(null);
   const [lastMove, setLastMove] = useState<{ from: Square; to: Square } | null>(null);
   const [isBotThinking, setIsBotThinking] = useState(false);
-  const [difficulty, setDifficulty] = useState<GameDifficulty>(() => route.params?.difficulty || 'Médio');
+  const [difficulty, setDifficulty] = useState<GameDifficulty>(() => (params.difficulty as GameDifficulty) || 'Médio');
   const [settingsModalVisible, setSettingsModalVisible] = useState(false);
 
   // Resume or Restart dialog modal state
@@ -214,11 +213,11 @@ export default function GameScreen({ navigation, route }: Props) {
 
   // Sincroniza se o modo mudar pela rota
   useEffect(() => {
-    if (route.params?.mode && route.params.mode !== gameMode) {
-      setGameMode(route.params.mode);
-      resetGame(route.params.mode);
+    if (params.mode && params.mode !== gameMode) {
+      setGameMode(params.mode);
+      resetGame(params.mode);
     }
-  }, [route.params?.mode]);
+  }, [params.mode]);
 
   // Cálculo responsivo do tabuleiro com precisão exata por casa (sem desvios subpixel)
   const reservedVerticalSpace = insets.top + insets.bottom + 46 + 58 + 58 + 48 + 28;
@@ -232,8 +231,8 @@ export default function GameScreen({ navigation, route }: Props) {
     const p = getProfile();
     setProfile(p);
     setLevels(getUserLevels());
-    if (route.params?.difficulty) {
-      setDifficulty(route.params.difficulty);
+    if (params.difficulty) {
+      setDifficulty(params.difficulty as GameDifficulty);
     } else if (p) {
       if (p.skill_level === 'Não sei jogar') setDifficulty('Fácil');
       else if (p.skill_level === 'Sei o básico') setDifficulty('Médio');
@@ -246,7 +245,7 @@ export default function GameScreen({ navigation, route }: Props) {
       pendingSavedMatchRef.current = saved;
       setShowResumeModal(true);
     }
-  }, [route.params?.difficulty]);
+  }, [params.difficulty]);
 
   // Save active match state whenever moves or clocks change, or on unmount
   useEffect(() => {
@@ -1057,7 +1056,7 @@ export default function GameScreen({ navigation, route }: Props) {
           ]}
           onHoverIn={() => setHoveredAction('back')}
           onHoverOut={() => setHoveredAction(null)}
-          onPress={() => navigation.goBack()}
+          onPress={() => router.back()}
         >
           <Ionicons name="arrow-back" size={24} color={colors.text} />
         </Pressable>
@@ -1581,7 +1580,7 @@ export default function GameScreen({ navigation, route }: Props) {
                 activeOpacity={0.8}
                 onPress={() => {
                   setGameOverModal((prev) => ({ ...prev, visible: false }));
-                  navigation.navigate('Home');
+                  router.replace('/');
                 }}
               >
                 <Text style={[styles.modalSecondaryBtnText, { color: colors.text }]}>Início</Text>

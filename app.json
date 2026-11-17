@@ -2,6 +2,7 @@
   "expo": {
     "name": "WinXadrez",
     "slug": "WinXadrez",
+    "scheme": "winxadrez",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -40,7 +41,8 @@
           "hidden": true
         }
       ],
-      "expo-sqlite"
+      "expo-sqlite",
+      "expo-router"
     ]
   }
 }

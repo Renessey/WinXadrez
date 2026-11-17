@@ -2,23 +2,13 @@ import React, { useEffect, useMemo, useRef } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { NavigationBar } from 'expo-navigation-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { DefaultTheme, NavigationContainer } from '@react-navigation/native';
-import { createNativeStackNavigator } from '@react-navigation/native-stack';
-
+import { DefaultTheme, ThemeProvider as NavThemeProvider } from 'expo-router/react-navigation';
+import { Stack } from 'expo-router';
 import { ActivityIndicator, Animated, Easing, Platform, View, StyleSheet } from 'react-native';
 import { useFonts } from 'expo-font';
 import { Ionicons } from '@expo/vector-icons';
 
-import { RootStackParamList } from './src/types/navigation';
-import { ThemeProvider, useAppTheme } from './src/context/ThemeContext';
-import HomeScreen from './src/screens/HomeScreen';
-import GameScreen from './src/screens/GameScreen';
-import PuzzleScreen from './src/screens/PuzzleScreen';
-import HistoryScreen from './src/screens/HistoryScreen';
-import LeaderboardScreen from './src/screens/LeaderboardScreen';
-import ProfileScreen from './src/screens/ProfileScreen';
-
-const Stack = createNativeStackNavigator<RootStackParamList>();
+import { ThemeProvider, useAppTheme } from '../src/context/ThemeContext';
 
 const starData: Array<{
   left: `${number}%`;
@@ -46,7 +36,7 @@ const starData: Array<{
   { left: '72%', top: '82%', size: 3, opacity: 0.8, driftX: 24, driftY: 18 },
 ];
 
-function MainContent() {
+function MainLayout() {
   const { colors, mode } = useAppTheme();
   const drift = useRef(new Animated.Value(0)).current;
 
@@ -92,63 +82,62 @@ function MainContent() {
 
   return (
     <SafeAreaProvider>
-      <View style={[styles.appShell, { backgroundColor: colors.background }]}>
-        <Animated.View pointerEvents="none" style={styles.backgroundLayer}>
-          <Animated.View
-            style={[
-              styles.orb,
-              styles.orbPrimary,
-              {
-                opacity: mode === 'dark' ? 0 : 0.08,
-                transform: [
-                  { translateX: drift.interpolate({ inputRange: [0, 1], outputRange: [0, 16] }) },
-                  { translateY: drift.interpolate({ inputRange: [0, 1], outputRange: [0, -12] }) },
-                  { scale: drift.interpolate({ inputRange: [0, 1], outputRange: [1, 1.1] }) },
-                ],
-              },
-            ]}
-          />
-          {starData.map((star, index) => (
+      <NavThemeProvider value={navTheme}>
+        <View style={[styles.appShell, { backgroundColor: colors.background }]}>
+          <Animated.View pointerEvents="none" style={styles.backgroundLayer}>
             <Animated.View
-              key={`star-${index}`}
-              style={{
-                position: 'absolute',
-                left: star.left,
-                top: star.top,
-                width: star.size,
-                height: star.size,
-                borderRadius: star.size / 2,
-                opacity: mode === 'dark' ? star.opacity * 0.45 : star.opacity * 0.12,
-                backgroundColor: mode === 'dark' ? '#ffffff' : '#000000',
-                shadowColor: mode === 'dark' ? '#ffffff' : '#000000',
-                shadowOpacity: 0.35,
-                shadowRadius: 4,
-                shadowOffset: { width: 0, height: 0 },
-                transform: [
-                  {
-                    translateX: drift.interpolate({
-                      inputRange: [0, 1],
-                      outputRange: [0, star.driftX * 0.45],
-                    }),
-                  },
-                  {
-                    translateY: drift.interpolate({
-                      inputRange: [0, 1],
-                      outputRange: [0, star.driftY * 0.45],
-                    }),
-                  },
-                ],
-              }}
+              style={[
+                styles.orb,
+                styles.orbPrimary,
+                {
+                  opacity: mode === 'dark' ? 0 : 0.08,
+                  transform: [
+                    { translateX: drift.interpolate({ inputRange: [0, 1], outputRange: [0, 16] }) },
+                    { translateY: drift.interpolate({ inputRange: [0, 1], outputRange: [0, -12] }) },
+                    { scale: drift.interpolate({ inputRange: [0, 1], outputRange: [1, 1.1] }) },
+                  ],
+                },
+              ]}
             />
-          ))}
-        </Animated.View>
+            {starData.map((star, index) => (
+              <Animated.View
+                key={`star-${index}`}
+                style={{
+                  position: 'absolute',
+                  left: star.left,
+                  top: star.top,
+                  width: star.size,
+                  height: star.size,
+                  borderRadius: star.size / 2,
+                  opacity: mode === 'dark' ? star.opacity * 0.45 : star.opacity * 0.12,
+                  backgroundColor: mode === 'dark' ? '#ffffff' : '#000000',
+                  shadowColor: mode === 'dark' ? '#ffffff' : '#000000',
+                  shadowOpacity: 0.35,
+                  shadowRadius: 4,
+                  shadowOffset: { width: 0, height: 0 },
+                  transform: [
+                    {
+                      translateX: drift.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [0, star.driftX * 0.45],
+                      }),
+                    },
+                    {
+                      translateY: drift.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [0, star.driftY * 0.45],
+                      }),
+                    },
+                  ],
+                }}
+              />
+            ))}
+          </Animated.View>
 
-        <View style={styles.navigatorWrap}>
-          <NavigationContainer theme={navTheme}>
+          <View style={styles.navigatorWrap}>
             <StatusBar hidden={true} />
             <NavigationBar hidden={true} />
-            <Stack.Navigator
-              initialRouteName="Home"
+            <Stack
               screenOptions={{
                 headerShown: false,
                 contentStyle: {
@@ -157,45 +146,21 @@ function MainContent() {
                 animation: 'slide_from_right',
               }}
             >
-              <Stack.Screen
-                name="Home"
-                component={HomeScreen}
-                options={{ title: 'WinXadrez' }}
-              />
-              <Stack.Screen
-                name="Game"
-                component={GameScreen}
-                options={{ title: 'Partida' }}
-              />
-              <Stack.Screen
-                name="Puzzle"
-                component={PuzzleScreen}
-                options={{ title: 'Quebra-cabeças' }}
-              />
-              <Stack.Screen
-                name="History"
-                component={HistoryScreen}
-                options={{ title: 'Histórico' }}
-              />
-              <Stack.Screen
-                name="Leaderboard"
-                component={LeaderboardScreen}
-                options={{ title: 'Ranking' }}
-              />
-              <Stack.Screen
-                name="Profile"
-                component={ProfileScreen}
-                options={{ title: 'Perfil' }}
-              />
-            </Stack.Navigator>
-          </NavigationContainer>
+              <Stack.Screen name="index" options={{ title: 'WinXadrez' }} />
+              <Stack.Screen name="game" options={{ title: 'Partida' }} />
+              <Stack.Screen name="puzzle" options={{ title: 'Quebra-cabeças' }} />
+              <Stack.Screen name="history" options={{ title: 'Histórico' }} />
+              <Stack.Screen name="leaderboard" options={{ title: 'Ranking' }} />
+              <Stack.Screen name="profile" options={{ title: 'Perfil' }} />
+            </Stack>
+          </View>
         </View>
-      </View>
+      </NavThemeProvider>
     </SafeAreaProvider>
   );
 }
 
-export default function App() {
+export default function RootLayout() {
   const [fontsLoaded] = useFonts({
     ...Ionicons.font,
   });
@@ -210,7 +175,7 @@ export default function App() {
 
   return (
     <ThemeProvider>
-      <MainContent />
+      <MainLayout />
     </ThemeProvider>
   );
 }
@@ -245,3 +210,4 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(110, 96, 255, 0.18)',
   },
 });
+

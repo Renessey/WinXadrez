@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -10,7 +10,7 @@ import {
   TextInput,
   Alert,
 } from 'react-native';
-import { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { RootStackParamList } from '../types/navigation';
 import {
@@ -23,8 +23,6 @@ import {
   getActiveMatch,
 } from '../database/db';
 import { useAppTheme } from '../context/ThemeContext';
-
-type Props = NativeStackScreenProps<RootStackParamList, 'Home'>;
 
 type GameDifficulty = 'Fácil' | 'Médio' | 'Difícil';
 
@@ -54,7 +52,8 @@ const particleDirections = [
   { x: 10, y: -32, size: 4 },
 ];
 
-export default function HomeScreen({ navigation }: Props) {
+export default function HomeScreen() {
+  const router = useRouter();
   const { colors, mode } = useAppTheme();
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [levels, setLevels] = useState<UserLevelsSummary>(() => getUserLevels());
@@ -83,11 +82,13 @@ export default function HomeScreen({ navigation }: Props) {
 
   useEffect(() => {
     loadProfileData();
-    const unsubscribe = navigation.addListener('focus', () => {
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
       loadProfileData();
-    });
-    return unsubscribe;
-  }, [navigation]);
+    }, [])
+  );
 
   useEffect(() => {
     const animation = Animated.loop(
@@ -174,7 +175,7 @@ export default function HomeScreen({ navigation }: Props) {
     }
 
     if (targetMode === 'pvp') {
-      navigation.navigate('Game', { mode: 'pvp' });
+      router.push({ pathname: '/game', params: { mode: 'pvp' } });
       return;
     }
 
@@ -188,7 +189,7 @@ export default function HomeScreen({ navigation }: Props) {
 
     if (hasActiveMatch) {
       // Se tiver partida em andamento, não pergunta nível, vai direto e a tela de jogo pergunta se quer continuar
-      navigation.navigate('Game', { mode: 'bot' });
+      router.push({ pathname: '/game', params: { mode: 'bot' } });
     } else {
       // Se não tiver partida em andamento, abre o modal para escolher em qual nível quer começar
       setShowLevelModal(true);
@@ -197,7 +198,7 @@ export default function HomeScreen({ navigation }: Props) {
 
   const handleSelectGameDifficulty = (difficulty: GameDifficulty) => {
     setShowLevelModal(false);
-    navigation.navigate('Game', { mode: 'bot', difficulty });
+    router.push({ pathname: '/game', params: { mode: 'bot', difficulty } });
   };
 
   const handleSelectLevel = (level: SkillLevel) => {
@@ -217,7 +218,7 @@ export default function HomeScreen({ navigation }: Props) {
     const newProfile = createProfile(trimmed, selectedLevel);
     setProfile(newProfile);
     setShowOnboarding(false);
-    navigation.navigate('Game', { mode: pendingMode });
+    router.push({ pathname: '/game', params: { mode: pendingMode } });
   };
 
   const winRate =
@@ -247,7 +248,7 @@ export default function HomeScreen({ navigation }: Props) {
 
         <Pressable
           style={[styles.profileButton, { backgroundColor: colors.chipBg, borderColor: colors.border }]}
-          onPress={() => navigation.navigate('Profile')}
+          onPress={() => router.push('/profile')}
         >
           <Ionicons name="person-circle-outline" size={20} color={colors.accent} />
           <Text style={[styles.profileButtonText, { color: colors.text }]}>Perfil</Text>
@@ -357,7 +358,7 @@ export default function HomeScreen({ navigation }: Props) {
 
               <Pressable
                 style={[styles.secondaryButton, { backgroundColor: colors.accent }]}
-                onPress={() => navigation.navigate('Puzzle')}
+                onPress={() => router.push('/puzzle')}
               >
                 <Ionicons name="sparkles" size={18} color="#171614" />
                 <Text style={styles.secondaryButtonText}>Puzzles</Text>
@@ -422,7 +423,13 @@ export default function HomeScreen({ navigation }: Props) {
                   if (item.screen === 'Game') {
                     handleStartGamePress(item.mode ?? 'bot');
                   } else {
-                    navigation.navigate(item.screen);
+                    const routeMap: Record<string, string> = {
+                      Puzzle: '/puzzle',
+                      History: '/history',
+                      Leaderboard: '/leaderboard',
+                      Profile: '/profile',
+                    };
+                    router.push(routeMap[item.screen] as any);
                   }
                 }}
               >

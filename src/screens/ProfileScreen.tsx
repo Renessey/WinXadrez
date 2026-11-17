@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   Alert,
   ScrollView,
@@ -8,10 +8,9 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { RootStackParamList } from '../types/navigation';
 import {
   getProfile,
   getSetting,
@@ -24,9 +23,8 @@ import {
 } from '../database/db';
 import { useAppTheme } from '../context/ThemeContext';
 
-type Props = NativeStackScreenProps<RootStackParamList, 'Profile'>;
-
-export default function ProfileScreen({ navigation }: Props) {
+export default function ProfileScreen() {
+  const router = useRouter();
   const { colors, mode, toggleTheme } = useAppTheme();
   const insets = useSafeAreaInsets();
   const [profile, setProfile] = useState<UserProfile | null>(null);
@@ -49,11 +47,13 @@ export default function ProfileScreen({ navigation }: Props) {
 
   useEffect(() => {
     loadData();
-    const unsubscribe = navigation.addListener('focus', () => {
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
       loadData();
-    });
-    return unsubscribe;
-  }, [navigation]);
+    }, [])
+  );
 
   const handleEditProfile = () => {
     setDraftName(profile?.name || 'Jogador');
@@ -147,7 +147,7 @@ export default function ProfileScreen({ navigation }: Props) {
         <TouchableOpacity
           style={styles.backButtonTop}
           activeOpacity={0.7}
-          onPress={() => navigation.goBack()}
+          onPress={() => router.back()}
         >
           <Ionicons name="arrow-back" size={24} color={colors.text} />
         </TouchableOpacity>

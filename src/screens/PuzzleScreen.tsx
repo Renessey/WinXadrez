@@ -7,14 +7,11 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Chess, type PieceSymbol, type Square } from 'chess.js';
-import { RootStackParamList } from '../types/navigation';
 import { useAppTheme } from '../context/ThemeContext';
-
-type Props = NativeStackScreenProps<RootStackParamList, 'Puzzle'>;
 
 type PuzzleSpec = {
   id: string;
@@ -87,7 +84,8 @@ const puzzleTypes: PuzzleSpec[] = [
 
 const files = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'] as const;
 
-export default function PuzzleScreen({ navigation }: Props) {
+export default function PuzzleScreen() {
+  const router = useRouter();
   const { colors } = useAppTheme();
   const insets = useSafeAreaInsets();
   const [selectedPuzzleId, setSelectedPuzzleId] = useState('mate');
@@ -239,7 +237,7 @@ export default function PuzzleScreen({ navigation }: Props) {
       ]}
     >
       <View style={[styles.topBar, { borderBottomColor: colors.border, paddingHorizontal: 16 }]}>
-        <TouchableOpacity style={styles.backButtonTop} activeOpacity={0.7} onPress={() => navigation.goBack()}>
+        <TouchableOpacity style={styles.backButtonTop} activeOpacity={0.7} onPress={() => router.back()}>
           <Ionicons name="arrow-back" size={24} color={colors.text} />
         </TouchableOpacity>
 

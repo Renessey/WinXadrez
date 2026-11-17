@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   ScrollView,
   StyleSheet,
@@ -7,15 +7,13 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { RootStackParamList } from '../types/navigation';
 import { getMatches, getProfile, MatchRecord, UserProfile } from '../database/db';
 import { useAppTheme } from '../context/ThemeContext';
 
-type Props = NativeStackScreenProps<RootStackParamList, 'History'>;
-
-export default function HistoryScreen({ navigation }: Props) {
+export default function HistoryScreen() {
+  const router = useRouter();
   const { colors } = useAppTheme();
   const insets = useSafeAreaInsets();
   const [matches, setMatches] = useState<MatchRecord[]>([]);
@@ -28,11 +26,13 @@ export default function HistoryScreen({ navigation }: Props) {
 
   useEffect(() => {
     loadData();
-    const unsubscribe = navigation.addListener('focus', () => {
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
       loadData();
-    });
-    return unsubscribe;
-  }, [navigation]);
+    }, [])
+  );
 
   const matchesCount = profile?.matches_count ?? 0;
   const winsCount = profile?.wins_count ?? 0;
@@ -54,7 +54,7 @@ export default function HistoryScreen({ navigation }: Props) {
         <TouchableOpacity
           style={styles.backButtonTop}
           activeOpacity={0.7}
-          onPress={() => navigation.goBack()}
+          onPress={() => router.back()}
         >
           <Ionicons name="arrow-back" size={24} color={colors.text} />
         </TouchableOpacity>
@@ -137,7 +137,7 @@ export default function HistoryScreen({ navigation }: Props) {
             <TouchableOpacity
               style={[styles.emptyButton, { backgroundColor: colors.primary }]}
               activeOpacity={0.8}
-              onPress={() => navigation.navigate('Game')}
+              onPress={() => router.push('/game')}
             >
               <Ionicons name="play" size={16} color="#ffffff" />
               <Text style={styles.emptyButtonText}>Jogar Partida</Text>
