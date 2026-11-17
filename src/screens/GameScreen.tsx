@@ -167,6 +167,9 @@ export default function GameScreen() {
   // Resume or Restart dialog modal state
   const [showResumeModal, setShowResumeModal] = useState(false);
   const pendingSavedMatchRef = useRef<any>(null);
+  const botReplyTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const turnNoticeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const matchGenerationRef = useRef(0);
 
   // Clocks: 2 minutes (120s) blitz clock
   const [whiteTime, setWhiteTime] = useState(120);
@@ -212,6 +215,15 @@ export default function GameScreen() {
   });
 
   const matchRecordedRef = useRef(false);
+
+  useEffect(() => {
+    return () => {
+      matchGenerationRef.current += 1;
+      if (botReplyTimeoutRef.current) clearTimeout(botReplyTimeoutRef.current);
+      if (turnNoticeTimeoutRef.current) clearTimeout(turnNoticeTimeoutRef.current);
+      moveAnim.stopAnimation();
+    };
+  }, [moveAnim]);
 
   // Sincroniza se o modo mudar pela rota
   useEffect(() => {
@@ -307,6 +319,19 @@ export default function GameScreen() {
   }, [board]);
 
   const resetGame = (newMode?: 'bot' | 'pvp') => {
+    matchGenerationRef.current += 1;
+    if (botReplyTimeoutRef.current) {
+      clearTimeout(botReplyTimeoutRef.current);
+      botReplyTimeoutRef.current = null;
+    }
+    if (turnNoticeTimeoutRef.current) {
+      clearTimeout(turnNoticeTimeoutRef.current);
+      turnNoticeTimeoutRef.current = null;
+    }
+    isAnimatingRef.current = false;
+    moveAnim.stopAnimation();
+    setAnimatingPiece(null);
+    setPromotionSelection(null);
     clearActiveMatch();
     const nextGame = new Chess();
     setGame(nextGame);
@@ -561,9 +586,18 @@ export default function GameScreen() {
 
   // Execute bot move with smooth animation
   const triggerBotMove = (currentGame: Chess) => {
+    const generation = matchGenerationRef.current;
     setIsBotThinking(true);
 
-    setTimeout(() => {
+    if (botReplyTimeoutRef.current) {
+      clearTimeout(botReplyTimeoutRef.current);
+    }
+    botReplyTimeoutRef.current = setTimeout(() => {
+      botReplyTimeoutRef.current = null;
+      if (generation !== matchGenerationRef.current) {
+        setIsBotThinking(false);
+        return;
+      }
       if (currentGame.isGameOver()) {
         setIsBotThinking(false);
         return;
@@ -759,7 +793,11 @@ export default function GameScreen() {
           : '120s esgotados! Vez passada para as Brancas.'
       );
     }
-    setTimeout(() => setTurnNotice(null), 3500);
+    if (turnNoticeTimeoutRef.current) clearTimeout(turnNoticeTimeoutRef.current);
+    turnNoticeTimeoutRef.current = setTimeout(() => {
+      turnNoticeTimeoutRef.current = null;
+      setTurnNotice(null);
+    }, 3500);
 
     // Se estiver em xeque, executa um lance defensivo legal para não deixar o rei vulnerável
     if (game.isCheck()) {
