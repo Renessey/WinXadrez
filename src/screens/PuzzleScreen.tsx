@@ -1,5 +1,6 @@
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  ActivityIndicator,
   Alert,
   ScrollView,
   StyleSheet,
@@ -12,26 +13,22 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Chess, type PieceSymbol, type Square } from 'chess.js';
 import { useAppTheme } from '../context/ThemeContext';
-
-type PuzzleSpec = {
-  id: string;
-  title: string;
-  subtitle: string;
-  icon: string;
-  color: string;
-  level: string;
-  objective: string;
-  fen: string;
-  hint: string;
-  solution: { from: Square; to: Square };
-};
+import {
+  getCachedDailyPuzzle,
+  getLocalDateKey,
+  getPuzzleProgress,
+  recordPuzzleSolved,
+  saveCachedDailyPuzzle,
+} from '../database/db';
+import { fetchDailyPuzzle, fetchNextPuzzle } from '../services/lichessPuzzleApi';
+import type { PuzzleSpec } from '../types/puzzle';
 
 const pieceSymbols: Record<'w' | 'b', Record<PieceSymbol, string>> = {
   w: { p: '♙', n: '♘', b: '♗', r: '♖', q: '♕', k: '♔' },
   b: { p: '♟', n: '♞', b: '♝', r: '♜', q: '♛', k: '♚' },
 };
 
-const puzzleTypes: PuzzleSpec[] = [
+const offlinePuzzles: PuzzleSpec[] = [
   {
     id: 'mate',
     title: 'Mate em 1',
@@ -42,7 +39,8 @@ const puzzleTypes: PuzzleSpec[] = [
     objective: 'Brancas jogam e encontram o lance vencedor.',
     fen: '6k1/8/8/8/8/8/4Q3/6K1 w - - 0 1',
     hint: 'A rainha ataca a coluna e o rei do adversário.',
-    solution: { from: 'e2', to: 'e8' },
+    solutionMoves: [{ from: 'e2', to: 'e8' }],
+    source: 'offline',
   },
   {
     id: 'fork',
@@ -54,7 +52,8 @@ const puzzleTypes: PuzzleSpec[] = [
     objective: 'Descubra o lance que ataca duas peças ao mesmo tempo.',
     fen: '6k1/8/8/8/3N4/8/8/6K1 w - - 0 1',
     hint: 'O cavalo aproveita o centro para criar uma ameaça dupla.',
-    solution: { from: 'd4', to: 'e6' },
+    solutionMoves: [{ from: 'd4', to: 'e6' }],
+    source: 'offline',
   },
   {
     id: 'endgame',
@@ -66,7 +65,8 @@ const puzzleTypes: PuzzleSpec[] = [
     objective: 'Use a torre para pressionar o rei adversário.',
     fen: '6k1/8/8/8/8/8/6R1/6K1 w - - 0 1',
     hint: 'A torre avança pela coluna aberta.',
-    solution: { from: 'g2', to: 'g8' },
+    solutionMoves: [{ from: 'g2', to: 'g8' }],
+    source: 'offline',
   },
   {
     id: 'defense',
@@ -78,7 +78,8 @@ const puzzleTypes: PuzzleSpec[] = [
     objective: 'Defenda o ponto crítico e mantenha a posição.',
     fen: '6k1/8/8/8/8/8/5P2/6K1 w - - 0 1',
     hint: 'A melhor defesa é a peça certa no lugar certo.',
-    solution: { from: 'f2', to: 'f3' },
+    solutionMoves: [{ from: 'f2', to: 'f3' }],
+    source: 'offline',
   },
 ];
 
@@ -88,17 +89,139 @@ export default function PuzzleScreen() {
   const router = useRouter();
   const { colors } = useAppTheme();
   const insets = useSafeAreaInsets();
-  const [selectedPuzzleId, setSelectedPuzzleId] = useState('mate');
-  const [game, setGame] = useState(() => new Chess(puzzleTypes[0].fen));
-  const [selectedSquare, setSelectedSquare] = useState<Square | null>(null);
-  const [lastMove, setLastMove] = useState<{ from: Square; to: Square } | null>(null);
-  const [isSolved, setIsSolved] = useState(false);
-  const [hintVisible, setHintVisible] = useState(false);
-  const [attempts, setAttempts] = useState(0);
+
+  const initialCache = useMemo(() => getCachedDailyPuzzle(), []);
+  const initialProgress = useMemo(() => getPuzzleProgress(), []);
+
+  const [dailyPuzzle, setDailyPuzzle] = useState<PuzzleSpec | null>(initialCache?.puzzle ?? null);
+  const [randomPuzzle, setRandomPuzzle] = useState<PuzzleSpec | null>(null);
+  const [selectedPuzzleId, setSelectedPuzzleId] = useState<string>(
+    initialCache?.puzzle?.id ?? offlinePuzzles[0].id
+  );
+  const [loadingDaily, setLoadingDaily] = useState<boolean>(
+    !initialCache || initialCache.date !== getLocalDateKey()
+  );
+  const [loadingRandom, setLoadingRandom] = useState<boolean>(false);
+  const [apiStatusNote, setApiStatusNote] = useState<string | null>(
+    initialCache ? 'Cache local carregado' : null
+  );
+
+  const [streak, setStreak] = useState<number>(initialProgress.streak);
+  const [solvedIds, setSolvedIds] = useState<string[]>(initialProgress.solvedIds);
+
+  const allPuzzles = useMemo(() => {
+    const list: PuzzleSpec[] = [];
+    if (dailyPuzzle) list.push(dailyPuzzle);
+    if (randomPuzzle) list.push(randomPuzzle);
+    return [...list, ...offlinePuzzles];
+  }, [dailyPuzzle, randomPuzzle]);
 
   const activePuzzle = useMemo(
-    () => puzzleTypes.find((puzzle) => puzzle.id === selectedPuzzleId) ?? puzzleTypes[0],
-    [selectedPuzzleId]
+    () => allPuzzles.find((puzzle) => puzzle.id === selectedPuzzleId) ?? allPuzzles[0],
+    [allPuzzles, selectedPuzzleId]
+  );
+
+  const [game, setGame] = useState(() => new Chess(activePuzzle.fen));
+  const [selectedSquare, setSelectedSquare] = useState<Square | null>(null);
+  const [lastMove, setLastMove] = useState<{ from: Square; to: Square } | null>(
+    activePuzzle.initialLastMove ?? null
+  );
+  const [solutionIndex, setSolutionIndex] = useState(0);
+  const [isOpponentThinking, setIsOpponentThinking] = useState(false);
+  const [isSolved, setIsSolved] = useState(() => solvedIds.includes(activePuzzle.id));
+  const [hintVisible, setHintVisible] = useState(false);
+  const [attempts, setAttempts] = useState(0);
+  const [feedbackError, setFeedbackError] = useState<string | null>(null);
+
+  const replyTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const hasInteractedRef = useRef(false);
+
+  const clearPendingReply = () => {
+    if (replyTimeoutRef.current) {
+      clearTimeout(replyTimeoutRef.current);
+      replyTimeoutRef.current = null;
+    }
+  };
+
+  useEffect(() => {
+    return () => clearPendingReply();
+  }, []);
+
+  const applyPuzzleToBoard = useCallback(
+    (puzzle: PuzzleSpec, currentSolvedIds: string[]) => {
+      clearPendingReply();
+      setIsOpponentThinking(false);
+      setGame(new Chess(puzzle.fen));
+      setSelectedSquare(null);
+      setLastMove(puzzle.initialLastMove ?? null);
+      setSolutionIndex(0);
+      setIsSolved(currentSolvedIds.includes(puzzle.id));
+      setHintVisible(false);
+      setAttempts(0);
+      setFeedbackError(null);
+    },
+    []
+  );
+
+  const loadDailyFromApi = useCallback(
+    async (forceSelect: boolean) => {
+      try {
+        setLoadingDaily(true);
+        const fetched = await fetchDailyPuzzle();
+        saveCachedDailyPuzzle(fetched);
+        setDailyPuzzle(fetched);
+        setApiStatusNote('Sincronizado hoje via Lichess');
+
+        if (forceSelect || !hasInteractedRef.current) {
+          setSelectedPuzzleId(fetched.id);
+          applyPuzzleToBoard(fetched, getPuzzleProgress().solvedIds);
+        }
+      } catch {
+        setApiStatusNote(
+          initialCache
+            ? 'Sem internet — usando último puzzle salvo no cache'
+            : 'Sem internet — usando puzzles offline'
+        );
+      } finally {
+        setLoadingDaily(false);
+      }
+    },
+    [applyPuzzleToBoard, initialCache]
+  );
+
+  useEffect(() => {
+    const today = getLocalDateKey();
+    if (initialCache && initialCache.date === today) {
+      setLoadingDaily(false);
+      setApiStatusNote('Puzzle diário em cache offline');
+      return;
+    }
+    loadDailyFromApi(false);
+  }, [initialCache, loadDailyFromApi]);
+
+  const handleLoadNextOnlinePuzzle = async () => {
+    if (loadingRandom) return;
+    try {
+      setLoadingRandom(true);
+      hasInteractedRef.current = true;
+      const next = await fetchNextPuzzle();
+      setRandomPuzzle(next);
+      setSelectedPuzzleId(next.id);
+      applyPuzzleToBoard(next, solvedIds);
+      setApiStatusNote('Novo desafio carregado do Lichess');
+    } catch {
+      Alert.alert(
+        'Sem conexão',
+        'Não foi possível buscar um novo puzzle do Lichess agora. Você pode continuar jogando os puzzles offline.'
+      );
+    } finally {
+      setLoadingRandom(false);
+    }
+  };
+
+  const boardOrientation = useMemo(
+    () => new Chess(activePuzzle.fen).turn(),
+    [activePuzzle.fen]
   );
 
   const legalTargets = useMemo(
@@ -107,50 +230,95 @@ export default function PuzzleScreen() {
   );
 
   const resetPuzzle = (puzzleId = selectedPuzzleId) => {
-    const nextPuzzle = puzzleTypes.find((puzzle) => puzzle.id === puzzleId) ?? puzzleTypes[0];
+    const nextPuzzle = allPuzzles.find((puzzle) => puzzle.id === puzzleId) ?? allPuzzles[0];
+    clearPendingReply();
+    setIsOpponentThinking(false);
     setGame(new Chess(nextPuzzle.fen));
     setSelectedSquare(null);
-    setLastMove(null);
+    setLastMove(nextPuzzle.initialLastMove ?? null);
+    setSolutionIndex(0);
     setIsSolved(false);
     setHintVisible(false);
     setAttempts(0);
+    setFeedbackError(null);
   };
 
   const handleSelectPuzzle = (puzzleId: string) => {
+    hasInteractedRef.current = true;
+    const target = allPuzzles.find((puzzle) => puzzle.id === puzzleId) ?? allPuzzles[0];
     setSelectedPuzzleId(puzzleId);
-    resetPuzzle(puzzleId);
+    applyPuzzleToBoard(target, solvedIds);
   };
 
   const handleSquarePress = (square: Square) => {
-    if (isSolved) return;
+    if (isSolved || isOpponentThinking) return;
 
+    hasInteractedRef.current = true;
     const current = new Chess(game.fen());
 
     if (selectedSquare) {
       const candidate = current.moves({ square: selectedSquare, verbose: true }).find((move) => move.to === square);
 
       if (candidate) {
-        const appliedMove = current.move({ from: selectedSquare, to: square, promotion: 'q' });
+        const expectedMove = activePuzzle.solutionMoves[solutionIndex];
+        const promotionChoice = expectedMove?.promotion ?? 'q';
+        const appliedMove = current.move({
+          from: selectedSquare,
+          to: square,
+          promotion: promotionChoice,
+        });
 
         if (!appliedMove) {
           setSelectedSquare(null);
           return;
         }
 
-        const isCorrect = selectedSquare === activePuzzle.solution.from && square === activePuzzle.solution.to;
+        const isLastStep = solutionIndex >= activePuzzle.solutionMoves.length - 1;
+        const matchesExpected =
+          expectedMove &&
+          selectedSquare === expectedMove.from &&
+          square === expectedMove.to;
+        const isAlternativeMate = current.isCheckmate() && isLastStep;
 
-        setGame(current);
-        setLastMove({ from: selectedSquare, to: square });
         setSelectedSquare(null);
         setAttempts((prev) => prev + 1);
 
-        if (isCorrect) {
+        if (!matchesExpected && !isAlternativeMate) {
+          setFeedbackError('Lance incorreto — tente outro caminho!');
+          return;
+        }
+
+        setFeedbackError(null);
+        setGame(current);
+        setLastMove({ from: selectedSquare, to: square });
+
+        const nextIndex = solutionIndex + 1;
+
+        if (nextIndex >= activePuzzle.solutionMoves.length || current.isCheckmate()) {
           setIsSolved(true);
+          const updated = recordPuzzleSolved(activePuzzle.id);
+          setStreak(updated.streak);
+          setSolvedIds(updated.solvedIds);
           Alert.alert('Excelente!', `Você resolveu o puzzle: ${activePuzzle.title}.`);
           return;
         }
 
-        Alert.alert('Lance incorreto', activePuzzle.hint);
+        const opponentMove = activePuzzle.solutionMoves[nextIndex];
+        setIsOpponentThinking(true);
+        replyTimeoutRef.current = setTimeout(() => {
+          const afterReply = new Chess(current.fen());
+          const reply = afterReply.move({
+            from: opponentMove.from,
+            to: opponentMove.to,
+            promotion: opponentMove.promotion ?? 'q',
+          });
+          if (reply) {
+            setGame(afterReply);
+            setLastMove({ from: opponentMove.from, to: opponentMove.to });
+            setSolutionIndex(nextIndex + 1);
+          }
+          setIsOpponentThinking(false);
+        }, 350);
         return;
       }
 
@@ -172,7 +340,11 @@ export default function PuzzleScreen() {
 
   const handleShowHint = () => {
     setHintVisible(true);
-    Alert.alert('Dica', `${activePuzzle.hint} O lance correto é ${activePuzzle.solution.from} → ${activePuzzle.solution.to}.`);
+    const currentStepMove = activePuzzle.solutionMoves[solutionIndex] ?? activePuzzle.solutionMoves[0];
+    Alert.alert(
+      'Dica',
+      `${activePuzzle.hint}\n\nLance sugerido agora: ${currentStepMove.from} → ${currentStepMove.to}.`
+    );
   };
 
   const handleReset = () => {
@@ -181,16 +353,29 @@ export default function PuzzleScreen() {
   };
 
   const renderBoard = () => {
-    const board = game.board();
+    const rawBoard = game.board();
+    const mappedRows = rawBoard.map((row, rowIndex) =>
+      row.map((piece, colIndex) => ({
+        piece,
+        square: `${files[colIndex]}${8 - rowIndex}` as Square,
+        isDark: (rowIndex + colIndex) % 2 === 1,
+      }))
+    );
 
-    return board.map((row, rowIndex) => (
+    const displayedRows =
+      boardOrientation === 'b'
+        ? [...mappedRows].reverse().map((row) => [...row].reverse())
+        : mappedRows;
+
+    const currentExpected = activePuzzle.solutionMoves[solutionIndex];
+
+    return displayedRows.map((row, rowIndex) => (
       <View key={`row-${rowIndex}`} style={styles.boardRow}>
-        {row.map((piece, colIndex) => {
-          const square = `${files[colIndex]}${8 - rowIndex}` as Square;
-          const isDark = (rowIndex + colIndex) % 2 === 1;
+        {row.map(({ piece, square, isDark }) => {
           const isSelected = selectedSquare === square;
           const isTarget = legalTargets.includes(square);
           const isLastMoveSquare = lastMove?.from === square || lastMove?.to === square;
+          const isHintSquare = hintVisible && !isSolved && currentExpected?.from === square;
 
           return (
             <TouchableOpacity
@@ -202,8 +387,9 @@ export default function PuzzleScreen() {
                 {
                   backgroundColor: isDark ? colors.boardDark : colors.boardLight,
                 },
+                isLastMoveSquare && { backgroundColor: colors.boardLastMove },
+                isHintSquare && { borderWidth: 2, borderColor: colors.accent },
                 isSelected && { borderWidth: 2, borderColor: colors.boardSelected },
-                isLastMoveSquare && { shadowColor: '#000', shadowOpacity: 0.15, shadowRadius: 2 },
               ]}
             >
               {isTarget && !piece && <View style={styles.emptyTargetDot} />}
@@ -226,6 +412,9 @@ export default function PuzzleScreen() {
     ));
   };
 
+  const totalPlayerMoves = Math.max(1, Math.ceil(activePuzzle.solutionMoves.length / 2));
+  const completedPlayerMoves = Math.min(totalPlayerMoves, Math.floor(solutionIndex / 2));
+
   return (
     <View
       style={[
@@ -243,12 +432,21 @@ export default function PuzzleScreen() {
 
         <View style={styles.topBarCenter}>
           <Text style={[styles.topBarTitle, { color: colors.text }]}>Tática Diária</Text>
-          <Text style={[styles.topBarSub, { color: colors.accent }]}>Desafios de Puzzles</Text>
+          <Text style={[styles.topBarSub, { color: colors.accent }]}>Lichess API + Offline</Text>
         </View>
 
-        <View style={[styles.topBarIconWrap, { backgroundColor: `${colors.accent}20` }]}>
-          <Ionicons name="extension-puzzle" size={20} color={colors.accent} />
-        </View>
+        <TouchableOpacity
+          style={[styles.topBarIconWrap, { backgroundColor: `${colors.accent}20` }]}
+          activeOpacity={0.7}
+          onPress={() => loadDailyFromApi(true)}
+          disabled={loadingDaily}
+        >
+          {loadingDaily ? (
+            <ActivityIndicator size="small" color={colors.accent} />
+          ) : (
+            <Ionicons name="refresh" size={18} color={colors.accent} />
+          )}
+        </TouchableOpacity>
       </View>
 
       <ScrollView style={[styles.container, { backgroundColor: colors.background }]} contentContainerStyle={styles.content}>
@@ -258,18 +456,37 @@ export default function PuzzleScreen() {
               <View style={[styles.difficultyDot, { backgroundColor: activePuzzle.color }]} />
               <Text style={[styles.difficultyText, { color: activePuzzle.color }]}>{activePuzzle.level.toUpperCase()}</Text>
             </View>
-            <Text style={[styles.streakText, { color: colors.accent }]}>Série: 8 🔥</Text>
+            <Text style={[styles.streakText, { color: colors.accent }]}>Série: {streak} 🔥</Text>
           </View>
 
           <View style={[styles.boardPreview, { borderColor: colors.borderStrong }]}>{renderBoard()}</View>
 
           <View style={styles.heroCopy}>
-            <Text style={[styles.heroKicker, { color: activePuzzle.color }]}>DESAFIO ATUAL</Text>
+            <Text style={[styles.heroKicker, { color: activePuzzle.color }]}>
+              {activePuzzle.source === 'offline'
+                ? 'DESAFIO OFFLINE'
+                : `LICHESS • ${activePuzzle.rating ?? ''} ELO • LANCE ${completedPlayerMoves + (isSolved ? 0 : 1)}/${totalPlayerMoves}`}
+            </Text>
             <Text style={[styles.heroTitle, { color: colors.text }]}>{activePuzzle.title}</Text>
             <Text style={[styles.heroDescription, { color: colors.textSecondary }]}>{activePuzzle.objective}</Text>
+
+            {activePuzzle.playersLabel && (
+              <Text style={[styles.playersMetaText, { color: colors.textMuted }]}>
+                Partida real: {activePuzzle.playersLabel}
+              </Text>
+            )}
+
+            {feedbackError && (
+              <View style={[styles.errorBadge, { backgroundColor: `${colors.danger}18`, borderColor: colors.danger }]}>
+                <Ionicons name="close-circle" size={16} color={colors.danger} />
+                <Text style={[styles.errorText, { color: colors.danger }]}>{feedbackError}</Text>
+              </View>
+            )}
+
             {hintVisible && (
               <Text style={[styles.hintText, { color: colors.accent }]}>Dica: {activePuzzle.hint}</Text>
             )}
+
             {isSolved && (
               <View style={[styles.successBadge, { backgroundColor: `${colors.primary}20`, borderColor: colors.primary }]}>
                 <Ionicons name="checkmark-circle" size={16} color={colors.primary} />
@@ -282,24 +499,44 @@ export default function PuzzleScreen() {
         <View style={[styles.actionCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
           <View style={styles.actionHeader}>
             <View style={[styles.actionIcon, { backgroundColor: `${colors.accent}20` }]}>
-              <Ionicons name="bulb" size={18} color={colors.accent} />
+              <Ionicons name="globe" size={18} color={colors.accent} />
             </View>
             <View style={styles.actionHeaderText}>
-              <Text style={[styles.sectionTitle, { color: colors.text }]}>Puzzles Offline</Text>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>Puzzles Online (Lichess)</Text>
               <Text style={[styles.taskText, { color: colors.textSecondary }]}>
-                {attempts === 0 ? 'Resolva sem internet e use a dica com inteligência.' : `Tentativas: ${attempts}`}
+                {apiStatusNote
+                  ? `${apiStatusNote} • Tentativas: ${attempts}`
+                  : attempts === 0
+                  ? 'Desafios reais diários com cache automático para jogar offline.'
+                  : `Tentativas: ${attempts}`}
               </Text>
             </View>
+            <TouchableOpacity
+              style={[styles.nextOnlineBtn, { backgroundColor: colors.primary }]}
+              activeOpacity={0.8}
+              onPress={handleLoadNextOnlinePuzzle}
+              disabled={loadingRandom}
+            >
+              {loadingRandom ? (
+                <ActivityIndicator size="small" color="#ffffff" />
+              ) : (
+                <>
+                  <Ionicons name="shuffle" size={14} color="#ffffff" />
+                  <Text style={styles.nextOnlineBtnText}>Novo</Text>
+                </>
+              )}
+            </TouchableOpacity>
           </View>
         </View>
 
         <View style={styles.challengeHeader}>
-          <Text style={[styles.challengeTitle, { color: colors.text }]}>Outros Puzzles</Text>
+          <Text style={[styles.challengeTitle, { color: colors.text }]}>Desafios Disponíveis</Text>
         </View>
 
         <View style={styles.challengeGrid}>
-          {puzzleTypes.map((puzzle) => {
-            const isSelected = puzzle.id === selectedPuzzleId;
+          {allPuzzles.map((puzzle) => {
+            const isSelected = puzzle.id === activePuzzle.id;
+            const puzzleSolved = solvedIds.includes(puzzle.id);
             return (
               <TouchableOpacity
                 key={puzzle.id}
@@ -314,8 +551,15 @@ export default function PuzzleScreen() {
                 activeOpacity={0.8}
                 onPress={() => handleSelectPuzzle(puzzle.id)}
               >
-                <View style={[styles.challengeIcon, { backgroundColor: `${puzzle.color}20` }]}>
-                  <Ionicons name={puzzle.icon as any} size={20} color={puzzle.color} />
+                <View style={styles.challengeCardTopRow}>
+                  <View style={[styles.challengeIcon, { backgroundColor: `${puzzle.color}20` }]}>
+                    <Ionicons name={puzzle.icon as any} size={20} color={puzzle.color} />
+                  </View>
+                  {puzzleSolved && (
+                    <View style={[styles.solvedPill, { backgroundColor: `${colors.primary}20` }]}>
+                      <Text style={[styles.solvedPillText, { color: colors.primary }]}>Concluído</Text>
+                    </View>
+                  )}
                 </View>
                 <Text style={[styles.challengeCardTitle, { color: colors.text }]}>{puzzle.title}</Text>
                 <Text style={[styles.challengeCardSubtitle, { color: colors.textSecondary }]}>{puzzle.subtitle}</Text>
@@ -487,10 +731,29 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 18,
   },
+  playersMetaText: {
+    fontSize: 11,
+    fontWeight: '600',
+  },
   hintText: {
     fontSize: 12,
     fontWeight: '700',
     marginTop: 4,
+  },
+  errorBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    borderWidth: 1,
+    marginTop: 4,
+  },
+  errorText: {
+    fontSize: 12,
+    fontWeight: '700',
   },
   successBadge: {
     flexDirection: 'row',
@@ -528,6 +791,21 @@ const styles = StyleSheet.create({
   actionHeaderText: {
     flex: 1,
   },
+  nextOnlineBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 10,
+    minWidth: 74,
+    justifyContent: 'center',
+  },
+  nextOnlineBtnText: {
+    color: '#ffffff',
+    fontSize: 12,
+    fontWeight: '800',
+  },
   sectionTitle: {
     fontSize: 15,
     fontWeight: '800',
@@ -551,13 +829,27 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     padding: 12,
   },
+  challengeCardTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 10,
+  },
   challengeIcon: {
     width: 36,
     height: 36,
     borderRadius: 10,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 10,
+  },
+  solvedPill: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 999,
+  },
+  solvedPillText: {
+    fontSize: 10,
+    fontWeight: '800',
   },
   challengeCardTitle: {
     fontSize: 15,
