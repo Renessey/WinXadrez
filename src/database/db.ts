@@ -49,6 +49,7 @@ export interface RankingResult {
 }
 
 let dbInstance: SQLite.SQLiteDatabase | null = null;
+export const DATABASE_SCHEMA_VERSION = 2;
 
 export function getDatabase(): SQLite.SQLiteDatabase {
   if (!dbInstance) {
@@ -61,7 +62,9 @@ export function getDatabase(): SQLite.SQLiteDatabase {
 function initDatabase(db: SQLite.SQLiteDatabase): void {
   db.execSync(`
     PRAGMA journal_mode = WAL;
+  `);
 
+  db.execSync(`
     CREATE TABLE IF NOT EXISTS profile (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT NOT NULL,
@@ -106,12 +109,31 @@ function initDatabase(db: SQLite.SQLiteDatabase): void {
     CREATE INDEX IF NOT EXISTS idx_ranking_points ON ranking_players(points DESC);
   `);
 
-  // Mantem somente um perfil local. O indice garante a regra tambem contra
-  // chamadas diretas ao banco, nao apenas contra a tela de onboarding.
-  db.runSync(
-    'DELETE FROM profile WHERE id NOT IN (SELECT id FROM profile ORDER BY id ASC LIMIT 1)'
-  );
-  db.execSync('CREATE UNIQUE INDEX IF NOT EXISTS idx_profile_singleton ON profile ((1));');
+  db.withTransactionSync(() => {
+    const versionRow = db.getFirstSync<{ value: string }>(
+      "SELECT value FROM settings WHERE key = 'database_schema_version'"
+    );
+    const storedVersion = Number.parseInt(versionRow?.value ?? '0', 10);
+
+    if (storedVersion < 1) {
+      db.runSync(
+        "INSERT INTO settings (key, value) VALUES ('database_schema_version', '1')"
+      );
+    }
+
+    if (storedVersion < 2) {
+      // Migration 2: garante que exista somente um perfil local.
+      db.runSync(
+        'DELETE FROM profile WHERE id NOT IN (SELECT id FROM profile ORDER BY id ASC LIMIT 1)'
+      );
+      db.execSync('CREATE UNIQUE INDEX IF NOT EXISTS idx_profile_singleton ON profile ((1));');
+      db.runSync(
+        "INSERT INTO settings (key, value) VALUES ('database_schema_version', '2') ON CONFLICT(key) DO UPDATE SET value = '2'"
+      );
+    }
+
+    db.execSync(`PRAGMA user_version = ${DATABASE_SCHEMA_VERSION};`);
+  });
 
   // Reseta todos os pontos para 0 exatamente uma vez para atender à nova regra
   try {

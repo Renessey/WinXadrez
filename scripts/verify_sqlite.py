@@ -310,6 +310,9 @@ if __name__ == "__main__":
     source = DB_SOURCE.read_text(encoding="utf-8")
     assert "success: false" in source
     assert "error: err instanceof Error" in source
+    assert "DATABASE_SCHEMA_VERSION = 2" in source
+    assert "database_schema_version" in source
+    assert "PRAGMA user_version" in source
 
     with tempfile.TemporaryDirectory() as directory:
         database_path = Path(directory) / "winxadrez-verification.db"
