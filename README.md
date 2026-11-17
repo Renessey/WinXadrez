@@ -154,3 +154,17 @@ Para executar a verificacao TypeScript sem gerar arquivos:
 ```bash
 npm run typecheck
 ```
+
+## Como usar
+
+1. Na primeira abertura, crie um perfil informando nome e nivel de conhecimento.
+2. Na tela inicial, selecione **Partida** para jogar contra o bot ou **Jogar contra**
+   para uma partida local entre dois jogadores.
+3. Ao iniciar uma partida contra o bot, escolha a dificuldade Facil, Medio ou Dificil.
+4. Movimente as peças tocando na peça e depois na casa de destino valida.
+5. A partida salva pode ser retomada ou reiniciada quando o aplicativo a encontrar.
+6. Use **Puzzle** para resolver desafios offline ou sincronizados com o Lichess.
+7. Consulte **Aberturas** e **Aprenda a Jogar** para estudar regras e posicoes.
+8. Acompanhe evolucao em **Niveis & Ligas**, **Conquistas**, **Historico** e **Ranking**.
+9. Abra o **Perfil** para editar o nome e consultar estatisticas.
+10. Em **Configuracoes**, altere o tema ou limpe cache e dados locais da partida.
