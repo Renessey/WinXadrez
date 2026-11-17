@@ -106,6 +106,13 @@ function initDatabase(db: SQLite.SQLiteDatabase): void {
     CREATE INDEX IF NOT EXISTS idx_ranking_points ON ranking_players(points DESC);
   `);
 
+  // Mantem somente um perfil local. O indice garante a regra tambem contra
+  // chamadas diretas ao banco, nao apenas contra a tela de onboarding.
+  db.runSync(
+    'DELETE FROM profile WHERE id NOT IN (SELECT id FROM profile ORDER BY id ASC LIMIT 1)'
+  );
+  db.execSync('CREATE UNIQUE INDEX IF NOT EXISTS idx_profile_singleton ON profile ((1));');
+
   // Reseta todos os pontos para 0 exatamente uma vez para atender à nova regra
   try {
     const hasReset = db.getFirstSync<{ value: string }>(
@@ -423,11 +430,23 @@ export function getProfile(): UserProfile | null {
 export function createProfile(name: string, skill_level: SkillLevel): UserProfile {
   const db = getDatabase();
   const trimmedName = name.trim() || 'Jogador';
-  
-  // Pontos começam em 0
+
+  const existing = db.getFirstSync<UserProfile>(
+    'SELECT * FROM profile ORDER BY id ASC LIMIT 1'
+  );
+
+  if (existing) {
+    db.runSync(
+      'UPDATE profile SET name = ?, skill_level = ? WHERE id = ?',
+      [trimmedName, skill_level, existing.id]
+    );
+    syncUserInRanking(db);
+    return { ...existing, name: trimmedName, skill_level };
+  }
+
   const initialPoints = 0;
   const now = new Date().toISOString();
-  
+
   const result = db.runSync(
     `INSERT INTO profile (name, skill_level, rating, matches_count, wins_count, losses_count, draws_count, created_at)
      VALUES (?, ?, ?, 0, 0, 0, 0, ?)`,

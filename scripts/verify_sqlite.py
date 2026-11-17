@@ -11,7 +11,7 @@ DB_SOURCE = ROOT / "src" / "database" / "db.ts"
 def extract_schema() -> str:
     source = DB_SOURCE.read_text(encoding="utf-8")
     statements = re.findall(
-        r"(CREATE TABLE IF NOT EXISTS .*?;|CREATE INDEX IF NOT EXISTS .*?;)",
+        r"(CREATE TABLE IF NOT EXISTS .*?;|CREATE INDEX IF NOT EXISTS .*?;|CREATE UNIQUE INDEX IF NOT EXISTS .*?;)",
         source,
         flags=re.DOTALL,
     )
@@ -37,6 +37,15 @@ def test_database(database_path: Path) -> None:
         if missing:
             raise AssertionError(f"Tabelas ausentes: {sorted(missing)}")
 
+        connection.execute(
+            "DELETE FROM profile WHERE id NOT IN "
+            "(SELECT id FROM profile ORDER BY id ASC LIMIT 1)"
+        )
+        connection.execute(
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_profile_singleton "
+            "ON profile ((1))"
+        )
+
         cursor = connection.execute(
             """
             INSERT INTO profile (
@@ -47,6 +56,21 @@ def test_database(database_path: Path) -> None:
             ("Jogador Teste", "Sei o básico", 0, "2026-11-17"),
         )
         profile_id = cursor.lastrowid
+
+        try:
+            connection.execute(
+                """
+                INSERT INTO profile (
+                    name, skill_level, rating, matches_count,
+                    wins_count, losses_count, draws_count, created_at
+                ) VALUES (?, ?, ?, 0, 0, 0, 0, ?)
+                """,
+                ("Segundo Perfil", "Não sei jogar", 0, "2026-11-17"),
+            )
+        except sqlite3.IntegrityError:
+            pass
+        else:
+            raise AssertionError("O banco permitiu criar um segundo perfil")
 
         cursor = connection.execute(
             """
