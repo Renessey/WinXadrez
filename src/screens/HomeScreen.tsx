@@ -4,15 +4,23 @@ import {
   Text,
   StyleSheet,
   Pressable,
-  ScrollView,
   Animated,
+  Easing,
   Modal,
   TextInput,
   Alert,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  AccessibilityInfo,
+  useWindowDimensions,
+  StyleProp,
+  ViewStyle,
 } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
+import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
-import { RootStackParamList } from '../types/navigation';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   getProfile,
   createProfile,
@@ -25,150 +33,369 @@ import {
 import { useAppTheme } from '../context/ThemeContext';
 
 type GameDifficulty = 'Fácil' | 'Médio' | 'Difícil';
+type IconName = keyof typeof Ionicons.glyphMap;
 
-interface NavItem {
+/* ---------- Identidade visual ---------- */
+// Palco escuro fixo (igual nos temas claro e escuro): obsidiana esmeralda + ouro + marfim.
+const STAGE = '#06110d';
+const GOLD = '#e9c46a';
+const IVORY = '#f3ead3';
+const BOARD_LIGHT = '#3b6a56';
+const BOARD_DARK = '#12281f';
+const ON_GOLD = '#1a1400';
+const START_FEN = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
+
+interface Tile {
   title: string;
   subtitle: string;
-  screen: keyof RootStackParamList;
-  icon: keyof typeof Ionicons.glyphMap;
-  color: string;
-  mode?: 'bot' | 'pvp';
+  icon: IconName;
+  route: string;
+  glyph: string;
 }
 
-const navItems: NavItem[] = [
-  { title: 'Partida', subtitle: 'Jogar vs Bot', screen: 'Game', icon: 'game-controller', color: '#81b64c', mode: 'bot' },
-  { title: 'Jogar contra', subtitle: 'Contra um amigo (2 Jogadores)', screen: 'Game', icon: 'people', color: '#38bdf8', mode: 'pvp' },
-  { title: 'Puzzle', subtitle: 'Desafios diários', screen: 'Puzzle', icon: 'extension-puzzle', color: '#f7b267' },
-  { title: 'Aberturas', subtitle: 'Biblioteca & posições', screen: 'Openings', icon: 'book', color: '#2dd4bf' },
-  { title: 'Aprenda a Jogar', subtitle: 'Regras e movimentos', screen: 'Tutorial', icon: 'school', color: '#fb923c' },
-  { title: 'Conquistas', subtitle: 'Medalhas e metas', screen: 'Achievements', icon: 'medal', color: '#f472b6' },
-  { title: 'Níveis & Ligas', subtitle: 'Sua evolução por modo', screen: 'Levels', icon: 'trending-up', color: '#34d399' },
-  { title: 'Histórico', subtitle: 'Resultados recentes', screen: 'History', icon: 'time', color: '#5fa8ff' },
-  { title: 'Ranking', subtitle: '1.000 Jogadores', screen: 'Leaderboard', icon: 'trophy', color: '#f7d36d' },
-  { title: 'Perfil', subtitle: 'Estatísticas reais', screen: 'Profile', icon: 'person', color: '#9b8cff' },
-  { title: 'Configurações', subtitle: 'Tema, cache e preferências', screen: 'Settings', icon: 'settings', color: '#94a3b8' },
+const trainTiles: Tile[] = [
+  { title: 'Puzzles', subtitle: 'Um desafio novo por dia', icon: 'extension-puzzle-outline', route: '/puzzle', glyph: '♞' },
+  { title: 'Aberturas', subtitle: 'Biblioteca e posições', icon: 'book-outline', route: '/openings', glyph: '♝' },
+  { title: 'Aprenda a jogar', subtitle: 'Regras e movimentos', icon: 'school-outline', route: '/tutorial', glyph: '♜' },
 ];
 
-const particleDirections = [
-  { x: 34, y: -22, size: 5 },
-  { x: 24, y: 20, size: 7 },
-  { x: -22, y: -18, size: 4 },
-  { x: -30, y: 16, size: 6 },
-  { x: 10, y: -32, size: 4 },
+const progressTiles: Tile[] = [
+  { title: 'Conquistas', subtitle: 'Medalhas e metas', icon: 'medal-outline', route: '/achievements', glyph: '♛' },
+  { title: 'Níveis e ligas', subtitle: 'Sua evolução', icon: 'trending-up-outline', route: '/levels', glyph: '♙' },
+  { title: 'Histórico', subtitle: 'Partidas recentes', icon: 'time-outline', route: '/history', glyph: '♖' },
+  { title: 'Ranking', subtitle: 'Top 1.000', icon: 'trophy-outline', route: '/leaderboard', glyph: '♔' },
 ];
+
+const profileTile: Tile = {
+  title: 'Perfil',
+  subtitle: 'Estatísticas e preferências',
+  icon: 'person-outline',
+  route: '/profile',
+  glyph: '♚',
+};
+
+const skillOptions: { level: SkillLevel; title: string; desc: string; icon: IconName }[] = [
+  { level: 'Não sei jogar', title: 'Não sei jogar', desc: 'Dificuldade fácil, com tutorial', icon: 'school-outline' },
+  { level: 'Sei o básico', title: 'Sei o básico', desc: 'Conheço regras e peças. Dificuldade média', icon: 'book-outline' },
+  { level: 'Sou bom', title: 'Sou bom', desc: 'Jogo com tática. Dificuldade difícil', icon: 'trophy-outline' },
+];
+
+const difficultyOptions: { level: GameDifficulty; title: string; desc: string; icon: IconName }[] = [
+  { level: 'Fácil', title: 'Fácil', desc: 'Jogadas simples, ideal para começar', icon: 'leaf-outline' },
+  { level: 'Médio', title: 'Médio', desc: 'Bot tático e equilibrado', icon: 'hardware-chip-outline' },
+  { level: 'Difícil', title: 'Difícil', desc: 'Bot calculista e exigente', icon: 'flame-outline' },
+];
+
+const pieces = [
+  { symbol: '♙', name: 'Peão', text: 'Anda 1 casa para frente (2 no primeiro lance) e captura na diagonal.' },
+  { symbol: '♖', name: 'Torre', text: 'Move-se em linha reta, na horizontal ou vertical, por quantas casas quiser.' },
+  { symbol: '♘', name: 'Cavalo', text: 'Move-se em "L": 2 casas em uma direção e 1 para o lado. Só ele pula peças.' },
+  { symbol: '♗', name: 'Bispo', text: 'Move-se nas diagonais, sempre na mesma cor de casa.' },
+  { symbol: '♕', name: 'Dama', text: 'Combina Torre e Bispo: a peça mais poderosa do jogo.' },
+  { symbol: '♔', name: 'Rei', text: 'Anda 1 casa em qualquer direção e nunca pode ficar sob ataque.' },
+];
+
+const dustSpecks = [
+  { left: '10%', size: 3, duration: 5200, delay: 0 },
+  { left: '24%', size: 2, duration: 6400, delay: 1400 },
+  { left: '38%', size: 3, duration: 5600, delay: 800 },
+  { left: '52%', size: 2, duration: 7000, delay: 2600 },
+  { left: '64%', size: 4, duration: 6000, delay: 400 },
+  { left: '76%', size: 2, duration: 5000, delay: 2000 },
+  { left: '88%', size: 3, duration: 6600, delay: 1000 },
+] as const;
+
+/* ---------- Pequenos blocos visuais ---------- */
+
+// Degradê feito com faixas translúcidas (sem depender de expo-linear-gradient)
+function Fade({ color, from, height }: { color: string; from: 'top' | 'bottom'; height: number }) {
+  const steps = 14;
+  return (
+    <View
+      pointerEvents="none"
+      style={[styles.fade, { height }, from === 'top' ? { top: 0 } : { bottom: 0 }]}
+    >
+      {Array.from({ length: steps }).map((_, i) => (
+        <View
+          key={i}
+          style={{
+            flex: 1,
+            backgroundColor: color,
+            opacity: from === 'top' ? 1 - i / steps : i / steps,
+          }}
+        />
+      ))}
+    </View>
+  );
+}
+
+// Brilho radial feito com círculos concêntricos
+function Glow({ size, color }: { size: number; color: string }) {
+  return (
+    <>
+      {Array.from({ length: 8 }).map((_, i) => {
+        const d = size * (1 - i / 8);
+        return (
+          <View
+            key={i}
+            style={{
+              position: 'absolute',
+              width: d,
+              height: d,
+              borderRadius: d / 2,
+              backgroundColor: color,
+              opacity: 0.035,
+            }}
+          />
+        );
+      })}
+    </>
+  );
+}
+
+function Speck({ left, size, duration, delay, enabled }: { left: string; size: number; duration: number; delay: number; enabled: boolean }) {
+  const t = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    if (!enabled) return;
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.delay(delay),
+        Animated.timing(t, { toValue: 1, duration, easing: Easing.linear, useNativeDriver: true }),
+        Animated.timing(t, { toValue: 0, duration: 0, useNativeDriver: true }),
+      ])
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [t, duration, delay, enabled]);
+  return (
+    <Animated.View
+      pointerEvents="none"
+      style={{
+        position: 'absolute',
+        bottom: 36,
+        left: left as `${number}%`,
+        width: size,
+        height: size,
+        borderRadius: size / 2,
+        backgroundColor: GOLD,
+        opacity: t.interpolate({ inputRange: [0, 0.2, 0.8, 1], outputRange: [0, 0.8, 0.4, 0] }),
+        transform: [{ translateY: t.interpolate({ inputRange: [0, 1], outputRange: [0, -170] }) }],
+      }}
+    />
+  );
+}
+
+function ScalePress({
+  children,
+  onPress,
+  style,
+  containerStyle,
+  label,
+}: {
+  children: React.ReactNode;
+  onPress: () => void;
+  style?: StyleProp<ViewStyle>;
+  containerStyle?: StyleProp<ViewStyle>;
+  label?: string;
+}) {
+  const s = useRef(new Animated.Value(1)).current;
+  const to = (v: number) =>
+    Animated.spring(s, { toValue: v, useNativeDriver: true, speed: 40, bounciness: 0 }).start();
+  return (
+    <Animated.View style={[{ transform: [{ scale: s }] }, containerStyle]}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={label}
+        onPressIn={() => to(0.97)}
+        onPressOut={() => to(1)}
+        onPress={onPress}
+        style={style}
+      >
+        {children}
+      </Pressable>
+    </Animated.View>
+  );
+}
+
+function BentoTile({ tile, wide, onPress }: { tile: Tile; wide?: boolean; onPress: () => void }) {
+  const { colors } = useAppTheme();
+  return (
+    <ScalePress
+      label={`${tile.title}. ${tile.subtitle}`}
+      onPress={onPress}
+      containerStyle={wide ? styles.tileOuterWide : styles.tileOuter}
+      style={[
+        styles.tile,
+        wide && styles.tileWide,
+        { backgroundColor: colors.surface, borderColor: colors.border },
+      ]}
+    >
+      <Text pointerEvents="none" style={[styles.glyph, { color: colors.text }]}>
+        {tile.glyph}
+      </Text>
+      <View style={[styles.tileIcon, { backgroundColor: colors.chipBg, borderColor: colors.border }]}>
+        <Ionicons name={tile.icon} size={20} color={colors.primary} />
+      </View>
+      <View>
+        <Text style={[styles.tileTitle, { color: colors.text }]}>{tile.title}</Text>
+        <Text style={[styles.tileSub, { color: colors.textSecondary }]}>{tile.subtitle}</Text>
+      </View>
+    </ScalePress>
+  );
+}
+
+function Sheet({ visible, onClose, children }: { visible: boolean; onClose: () => void; children: React.ReactNode }) {
+  const { colors } = useAppTheme();
+  const insets = useSafeAreaInsets();
+  return (
+    <Modal visible={visible} animationType="slide" transparent statusBarTranslucent onRequestClose={onClose}>
+      <View style={styles.overlay}>
+        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} accessibilityLabel="Fechar" />
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+          <View
+            style={[
+              styles.sheet,
+              { backgroundColor: colors.surface, borderColor: colors.border, paddingBottom: Math.max(insets.bottom, 16) + 8 },
+            ]}
+          >
+            <View style={[styles.handle, { backgroundColor: GOLD }]} />
+            {children}
+          </View>
+        </KeyboardAvoidingView>
+      </View>
+    </Modal>
+  );
+}
+
+function OptionRow({
+  icon,
+  title,
+  desc,
+  selected,
+  trailing,
+  onPress,
+}: {
+  icon: IconName;
+  title: string;
+  desc: string;
+  selected?: boolean;
+  trailing: 'radio' | 'chevron';
+  onPress: () => void;
+}) {
+  const { colors } = useAppTheme();
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityState={{ selected }}
+      onPress={onPress}
+      style={({ pressed }) => [
+        styles.optionRow,
+        {
+          backgroundColor: colors.cardSecondary ?? colors.chipBg,
+          borderColor: selected ? GOLD : colors.border,
+          borderWidth: selected ? 2 : 1,
+          opacity: pressed ? 0.85 : 1,
+        },
+      ]}
+    >
+      <View style={[styles.optionIcon, { backgroundColor: colors.chipBg }]}>
+        <Ionicons name={icon} size={20} color={selected ? GOLD : colors.textSecondary} />
+      </View>
+      <View style={styles.flex}>
+        <Text style={[styles.optionTitle, { color: colors.text }]}>{title}</Text>
+        <Text style={[styles.optionDesc, { color: colors.textSecondary }]}>{desc}</Text>
+      </View>
+      {trailing === 'radio' ? (
+        <Ionicons name={selected ? 'radio-button-on' : 'radio-button-off'} size={22} color={selected ? GOLD : colors.textMuted} />
+      ) : (
+        <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
+      )}
+    </Pressable>
+  );
+}
+
+/* ---------- Tela ---------- */
 
 export default function HomeScreen() {
   const router = useRouter();
-  const { colors, mode } = useAppTheme();
+  const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
+  const { colors } = useAppTheme();
+
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [levels, setLevels] = useState<UserLevelsSummary>(() => getUserLevels());
+  const [hasActiveMatch, setHasActiveMatch] = useState(false);
+  const [focused, setFocused] = useState(true);
+  const [reduceMotion, setReduceMotion] = useState(false);
 
-  // Onboarding, Level Selection & Tutorial Modal states
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [showLevelModal, setShowLevelModal] = useState(false);
   const [showTutorial, setShowTutorial] = useState(false);
   const [playerName, setPlayerName] = useState('');
   const [selectedLevel, setSelectedLevel] = useState<SkillLevel>('Sei o básico');
   const [pendingMode, setPendingMode] = useState<'bot' | 'pvp'>('bot');
-  const [hoveredActivity, setHoveredActivity] = useState<string | null>(null);
 
-  const pulse = useRef(new Animated.Value(0)).current;
-  const orbTravel = useRef(new Animated.Value(0)).current;
-  const explosion = useRef(new Animated.Value(0)).current;
-  const activityHoverScale = useRef(new Animated.Value(1)).current;
-  const [heroWidth, setHeroWidth] = useState(0);
-  const travelDistance = Math.max(heroWidth - 76, 220);
+  const scrollY = useRef(new Animated.Value(0)).current;
+  const intro = useRef(new Animated.Value(0)).current;
+  const float = useRef(new Animated.Value(0)).current;
+  const sweep = useRef(new Animated.Value(0)).current;
+
+  const boardSize = Math.min(width * 0.78, 320);
 
   const loadProfileData = () => {
-    const p = getProfile();
-    setProfile(p);
+    setProfile(getProfile());
     setLevels(getUserLevels());
+    const saved = getActiveMatch();
+    setHasActiveMatch(Boolean(saved && saved.fen && saved.fen !== START_FEN));
   };
 
   useEffect(() => {
     loadProfileData();
+    AccessibilityInfo.isReduceMotionEnabled().then(setReduceMotion).catch(() => {});
   }, []);
 
   useFocusEffect(
     useCallback(() => {
       loadProfileData();
+      setFocused(true);
+      return () => setFocused(false);
     }, [])
   );
 
+  // Entrada: o tabuleiro sobe e o rei desce, uma vez
   useEffect(() => {
-    const animation = Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulse, { toValue: 1, duration: 1300, useNativeDriver: true }),
-        Animated.timing(pulse, { toValue: 0, duration: 1300, useNativeDriver: true }),
-      ]),
-    );
-    animation.start();
-    return () => animation.stop();
-  }, [pulse]);
-
-  useEffect(() => {
-    const animation = Animated.loop(
-      Animated.sequence([
-        Animated.timing(orbTravel, {
-          toValue: 1,
-          duration: 1900,
-          useNativeDriver: true,
-        }),
-        Animated.timing(explosion, {
-          toValue: 1,
-          duration: 480,
-          useNativeDriver: true,
-        }),
-        Animated.delay(520),
-        Animated.parallel([
-          Animated.timing(orbTravel, { toValue: 0, duration: 1, useNativeDriver: true }),
-          Animated.timing(explosion, { toValue: 0, duration: 1, useNativeDriver: true }),
-        ]),
-      ]),
-    );
-    animation.start();
-    return () => animation.stop();
-  }, [explosion, orbTravel]);
-
-  useEffect(() => {
-    if (!hoveredActivity) {
-      Animated.timing(activityHoverScale, {
-        toValue: 1,
-        duration: 180,
-        useNativeDriver: true,
-      }).start();
+    if (reduceMotion) {
+      intro.setValue(1);
       return;
     }
+    Animated.timing(intro, { toValue: 1, duration: 1100, easing: Easing.out(Easing.cubic), useNativeDriver: true }).start();
+  }, [intro, reduceMotion]);
 
-    const animation = Animated.loop(
+  // Levitação do rei e varredura de luz no tabuleiro
+  useEffect(() => {
+    if (reduceMotion) return;
+    const floatLoop = Animated.loop(
       Animated.sequence([
-        Animated.timing(activityHoverScale, {
-          toValue: 1.02,
-          duration: 420,
-          useNativeDriver: true,
-        }),
-        Animated.timing(activityHoverScale, {
-          toValue: 1,
-          duration: 380,
-          useNativeDriver: true,
-        }),
-        Animated.timing(activityHoverScale, {
-          toValue: 1.025,
-          duration: 440,
-          useNativeDriver: true,
-        }),
-        Animated.timing(activityHoverScale, {
-          toValue: 1,
-          duration: 420,
-          useNativeDriver: true,
-        }),
+        Animated.timing(float, { toValue: 1, duration: 2400, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+        Animated.timing(float, { toValue: 0, duration: 2400, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
       ])
     );
+    const sweepLoop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(sweep, { toValue: 1, duration: 2600, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
+        Animated.delay(2400),
+        Animated.timing(sweep, { toValue: 0, duration: 0, useNativeDriver: true }),
+      ])
+    );
+    floatLoop.start();
+    sweepLoop.start();
+    return () => {
+      floatLoop.stop();
+      sweepLoop.stop();
+    };
+  }, [float, sweep, reduceMotion]);
 
-    animation.start();
-    return () => animation.stop();
-  }, [hoveredActivity, activityHoverScale]);
-
+  /* ----- Lógica original, preservada ----- */
   const handleStartGamePress = (targetMode: 'bot' | 'pvp' = 'bot') => {
     const currentProfile = getProfile();
     if (!currentProfile) {
@@ -178,25 +405,15 @@ export default function HomeScreen() {
       setShowOnboarding(true);
       return;
     }
-
     if (targetMode === 'pvp') {
       router.push({ pathname: '/game', params: { mode: 'pvp' } });
       return;
     }
-
-    // Modo Bot (Partida):
-    // Verifica se já tem partida em andamento salva
     const saved = getActiveMatch();
-    const hasActiveMatch =
-      saved &&
-      saved.fen &&
-      saved.fen !== 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
-
-    if (hasActiveMatch) {
-      // Se tiver partida em andamento, não pergunta nível, vai direto e a tela de jogo pergunta se quer continuar
+    const active = saved && saved.fen && saved.fen !== START_FEN;
+    if (active) {
       router.push({ pathname: '/game', params: { mode: 'bot' } });
     } else {
-      // Se não tiver partida em andamento, abre o modal para escolher em qual nível quer começar
       setShowLevelModal(true);
     }
   };
@@ -208,18 +425,15 @@ export default function HomeScreen() {
 
   const handleSelectLevel = (level: SkillLevel) => {
     setSelectedLevel(level);
-    if (level === 'Não sei jogar') {
-      setShowTutorial(true);
-    }
+    if (level === 'Não sei jogar') setShowTutorial(true);
   };
 
   const handleConfirmOnboarding = () => {
     const trimmed = playerName.trim();
     if (trimmed.length < 2) {
-      Alert.alert('Nome inválido', 'Por favor, digite seu nome ou apelido com pelo menos 2 caracteres.');
+      Alert.alert('Nome inválido', 'Digite um nome ou apelido com pelo menos 2 caracteres.');
       return;
     }
-
     const newProfile = createProfile(trimmed, selectedLevel);
     setProfile(newProfile);
     setShowOnboarding(false);
@@ -230,1082 +444,550 @@ export default function HomeScreen() {
     profile && profile.matches_count > 0
       ? `${Math.round((profile.wins_count / profile.matches_count) * 100)}%`
       : '0%';
+  const initial = profile?.name?.trim()?.charAt(0)?.toUpperCase();
+  const go = (route: string) => router.push(route as any);
+
+  /* ----- Animações derivadas ----- */
+  const tilt = scrollY.interpolate({ inputRange: [0, 320], outputRange: ['56deg', '34deg'], extrapolate: 'clamp' });
+  const parallax = scrollY.interpolate({ inputRange: [0, 400], outputRange: [0, 90], extrapolate: 'clamp' });
+  const kingFloat = float.interpolate({ inputRange: [0, 1], outputRange: [0, -14] });
+  const shadowScale = float.interpolate({ inputRange: [0, 1], outputRange: [1, 0.78] });
+  const shadowOpacity = float.interpolate({ inputRange: [0, 1], outputRange: [0.5, 0.28] });
+  const glowScale = float.interpolate({ inputRange: [0, 1], outputRange: [1, 1.08] });
+  const sweepX = sweep.interpolate({ inputRange: [0, 1], outputRange: [-boardSize * 1.3, boardSize * 1.3] });
 
   return (
-    <ScrollView
-      style={[styles.container, { backgroundColor: colors.background }]}
-      contentContainerStyle={styles.content}
-    >
-      {/* Top bar with real profile info */}
-      <View style={styles.topBar}>
-        <View style={[styles.logoWrap, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-          <Text style={styles.logoMark}>♔</Text>
-        </View>
+    <View style={[styles.flex, { backgroundColor: colors.background }]}>
+      {focused && <StatusBar style="light" />}
 
-        <View style={styles.topMeta}>
-          <Text style={[styles.brandName, { color: colors.text }]}>
-            {profile ? profile.name : 'WinXadrez'}
-          </Text>
-          <Text style={[styles.brandSub, { color: colors.textSecondary }]}>
-            {profile ? `Nível ${levels.totalLevel} • ${profile.skill_level}` : 'Xadrez Offline'}
-          </Text>
-        </View>
-
-        <Pressable
-          style={[styles.profileButton, { backgroundColor: colors.chipBg, borderColor: colors.border, marginRight: 8 }]}
-          onPress={() => router.push('/settings')}
-        >
-          <Ionicons name="settings-outline" size={18} color={colors.textSecondary} />
-        </Pressable>
-
-        <Pressable
-          style={[styles.profileButton, { backgroundColor: colors.chipBg, borderColor: colors.border }]}
-          onPress={() => router.push('/profile')}
-        >
-          <Ionicons name="person-circle-outline" size={20} color={colors.accent} />
-          <Text style={[styles.profileButtonText, { color: colors.text }]}>Perfil</Text>
-        </Pressable>
-      </View>
-
-      {/* Hero card */}
-      <Animated.View
-        style={[
-          styles.heroShell,
-          {
-            transform: [
-              {
-                scale: pulse.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [1, 1.012],
-                }),
-              },
-            ],
-          },
-        ]}
+      <Animated.ScrollView
+        style={styles.flex}
+        showsVerticalScrollIndicator={false}
+        scrollEventThrottle={16}
+        onScroll={Animated.event([{ nativeEvent: { contentOffset: { y: scrollY } } }], { useNativeDriver: true })}
+        contentContainerStyle={{ paddingBottom: insets.bottom + 40 }}
       >
-        <View
-          style={[styles.heroCard, { backgroundColor: colors.surface, borderColor: colors.border }]}
-          onLayout={(event) => setHeroWidth(event.nativeEvent.layout.width)}
-        >
-          <View pointerEvents="none" style={styles.heroReflection} />
-          <View pointerEvents="none" style={styles.particleTrack} />
-          <Animated.View
-            pointerEvents="none"
-            style={[
-              styles.particle,
-              {
-                transform: [
-                  {
-                    translateX: orbTravel.interpolate({
-                      inputRange: [0, 1],
-                      outputRange: [0, travelDistance],
-                    }),
-                  },
-                  {
-                    scale: orbTravel.interpolate({
-                      inputRange: [0, 0.15, 0.85, 1],
-                      outputRange: [0.85, 1.1, 1.1, 1.5],
-                    }),
-                  },
-                ],
-                opacity: explosion.interpolate({
-                  inputRange: [0, 0.8, 1],
-                  outputRange: [1, 1, 0],
-                }),
-              },
-            ]}
-          />
-          {particleDirections.map((particle, index) => (
-            <Animated.View
-              key={index}
-              pointerEvents="none"
-              style={[
-                styles.particleBubble,
-                { width: particle.size, height: particle.size, borderRadius: particle.size / 2 },
-                {
-                  transform: [
-                    {
-                      translateX: orbTravel.interpolate({
-                        inputRange: [0, 1],
-                        outputRange: [travelDistance, travelDistance + particle.x],
-                      }),
-                    },
-                    {
-                      translateY: explosion.interpolate({
-                        inputRange: [0, 1],
-                        outputRange: [0, particle.y],
-                      }),
-                    },
-                    {
-                      scale: explosion.interpolate({
-                        inputRange: [0, 0.2, 1],
-                        outputRange: [0, 1, 0.7],
-                      }),
-                    },
-                  ],
-                  opacity: explosion.interpolate({
-                    inputRange: [0, 0.15, 0.8, 1],
-                    outputRange: [0, 1, 0.8, 0],
-                  }),
-                },
-              ]}
-            />
-          ))}
+        {/* Cobre o "puxar para baixo" com a cor do palco */}
+        <View pointerEvents="none" style={styles.overscroll} />
 
-          <View style={styles.heroContent}>
-            <Text style={styles.eyebrow}>Xadrez Offline</Text>
-            <Text style={[styles.heroTitle, { color: colors.text }]}>{`Conquiste\ncada partida.`}</Text>
-            <Text style={[styles.heroSubtitle, { color: colors.textSecondary }]}>
-              Jogue contra a máquina calibrada ao seu nível, treine e acompanhe sua evolução real.
-            </Text>
-
-            <View style={styles.heroActions}>
-              <Pressable
-                style={[styles.primaryButton, { backgroundColor: colors.primary }]}
-                onPress={() => handleStartGamePress('bot')}
-              >
-                <Ionicons name="play" size={18} color="#ffffff" />
-                <Text style={styles.primaryButtonText}>Jogar</Text>
-              </Pressable>
-
-              <Pressable
-                style={[styles.secondaryButton, { backgroundColor: colors.accent }]}
-                onPress={() => router.push('/puzzle')}
-              >
-                <Ionicons name="sparkles" size={18} color="#171614" />
-                <Text style={styles.secondaryButtonText}>Puzzles</Text>
-              </Pressable>
-            </View>
-          </View>
-        </View>
-      </Animated.View>
-
-      {/* Real stats row */}
-      <View style={[styles.statsRow, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-        <View style={styles.statCard}>
-          <Text style={[styles.statValue, { color: colors.text }]}>
-            {profile ? profile.matches_count : 0}
-          </Text>
-          <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Partidas</Text>
-        </View>
-        <View style={styles.statCard}>
-          <Text style={[styles.statValue, { color: colors.primary }]}>{winRate}</Text>
-          <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Vitórias</Text>
-        </View>
-        <View style={styles.statCard}>
-          <Text style={[styles.statValue, { color: colors.accent }]}>
-            {profile ? profile.rating : 0}
-          </Text>
-          <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Pontos</Text>
-        </View>
-      </View>
-
-      <View style={styles.sectionHeader}>
-        <Text style={[styles.sectionTitle, { color: colors.text }]}>Menu de Atividades</Text>
-      </View>
-
-      {/* Menu items list */}
-      <View style={styles.list}>
-        {navItems.map((item) => {
-          const isHovered = hoveredActivity === item.title;
-
-          return (
-            <Animated.View
-              key={item.title}
-              style={{
-                transform: [{ scale: isHovered ? activityHoverScale : 1 }],
-              }}
-            >
-              <Pressable
-                style={[
-                  styles.card,
-                  {
-                    backgroundColor: colors.surface,
-                    borderColor: `${item.color}66`,
-                    shadowColor: item.color,
-                    shadowOpacity: isHovered ? 0.18 : 0.1,
-                    shadowRadius: isHovered ? 12 : 8,
-                    shadowOffset: { width: 0, height: isHovered ? 4 : 3 },
-                    elevation: isHovered ? 5 : 2,
-                  },
-                ]}
-                onHoverIn={() => setHoveredActivity(item.title)}
-                onHoverOut={() => setHoveredActivity(null)}
-                onPress={() => {
-                  if (item.screen === 'Game') {
-                    handleStartGamePress(item.mode ?? 'bot');
-                  } else {
-                    const routeMap: Record<string, string> = {
-                      Puzzle: '/puzzle',
-                      History: '/history',
-                      Leaderboard: '/leaderboard',
-                      Profile: '/profile',
-                      Tutorial: '/tutorial',
-                      Openings: '/openings',
-                      Achievements: '/achievements',
-                      Levels: '/levels',
-                      Settings: '/settings',
-                    };
-                    router.push(routeMap[item.screen] as any);
-                  }
-                }}
-              >
-                <View
-                  style={[
-                    styles.iconWrapper,
-                    {
-                      backgroundColor: item.color + '22',
-                      borderColor: `${item.color}66`,
-                      shadowColor: item.color,
-                      shadowOpacity: 0.18,
-                      shadowRadius: 8,
-                      shadowOffset: { width: 0, height: 0 },
-                    },
-                  ]}
-                >
-                  <Ionicons name={item.icon} size={24} color={item.color} />
-                </View>
-                <View style={styles.cardInfo}>
-                  <Text style={[styles.cardTitle, { color: colors.text }]}>{item.title}</Text>
-                  <Text style={[styles.cardSubtitle, { color: colors.textSecondary }]}>{item.subtitle}</Text>
-                </View>
-                <Ionicons name="chevron-forward" size={18} color={colors.textSecondary} />
-              </Pressable>
-            </Animated.View>
-          );
-        })}
-      </View>
-
-      {/* Modal de Cadastro / Onboarding Inicial */}
-      <Modal
-        visible={showOnboarding}
-        animationType="slide"
-        transparent={true}
-        onRequestClose={() => setShowOnboarding(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalBox, { backgroundColor: colors.surface, borderColor: colors.borderStrong }]}>
-            <View style={styles.modalHeader}>
-              <View style={styles.modalBadge}>
-                <Ionicons name="person-add" size={20} color="#81b64c" />
-              </View>
-              <Text style={[styles.modalTitle, { color: colors.text }]}>Bem-vindo ao WinXadrez!</Text>
-              <Text style={[styles.modalSub, { color: colors.textSecondary }]}>
-                Informe seu nome e seu nível para calibrar a dificuldade do jogo.
-              </Text>
-            </View>
-
-            <View style={styles.inputGroup}>
-              <Text style={[styles.inputLabel, { color: colors.text }]}>Seu nome ou apelido:</Text>
-              <TextInput
-                style={[
-                  styles.textInput,
-                  {
-                    backgroundColor: mode === 'dark' ? colors.cardSecondary : '#f0eee8',
-                    color: colors.text,
-                    borderColor: colors.borderStrong,
-                  },
-                ]}
-                placeholder="Ex: Mestre Carlos"
-                placeholderTextColor={colors.textMuted}
-                value={playerName}
-                onChangeText={setPlayerName}
-                maxLength={25}
-                autoFocus
-              />
-            </View>
-
-            <Text style={[styles.inputLabel, { color: colors.text, marginTop: 12 }]}>
-              Qual é o seu nível de xadrez?
-            </Text>
-
-            <View style={styles.levelList}>
-              {(
-                [
-                  {
-                    level: 'Não sei jogar' as SkillLevel,
-                    title: 'Não sei jogar',
-                    desc: 'Iniciante total • Dificuldade Fácil (com tutorial)',
-                    icon: 'school-outline',
-                    color: '#f7b267',
-                  },
-                  {
-                    level: 'Sei o básico' as SkillLevel,
-                    title: 'Sei o básico',
-                    desc: 'Conheço regras e peças • Dificuldade Média',
-                    icon: 'book-outline',
-                    color: '#81b64c',
-                  },
-                  {
-                    level: 'Sou bom' as SkillLevel,
-                    title: 'Sou bom',
-                    desc: 'Experiente e tático • Dificuldade Difícil',
-                    icon: 'trophy-outline',
-                    color: '#9b8cff',
-                  },
-                ] as const
-              ).map((opt) => {
-                const isSelected = selectedLevel === opt.level;
-                return (
-                  <Pressable
-                    key={opt.level}
-                    style={[
-                      styles.levelCard,
-                      {
-                        backgroundColor: mode === 'dark' ? colors.cardSecondary : '#f7f6f2',
-                        borderColor: isSelected ? opt.color : colors.border,
-                        borderWidth: isSelected ? 2 : 1,
-                      },
-                    ]}
-                    onPress={() => handleSelectLevel(opt.level)}
-                  >
-                    <View style={[styles.levelIconWrap, { backgroundColor: opt.color + '22' }]}>
-                      <Ionicons name={opt.icon as any} size={20} color={opt.color} />
-                    </View>
-                    <View style={styles.levelInfo}>
-                      <Text style={[styles.levelTitle, { color: colors.text }]}>{opt.title}</Text>
-                      <Text style={[styles.levelDesc, { color: colors.textSecondary }]}>{opt.desc}</Text>
-                    </View>
-                    <Ionicons
-                      name={isSelected ? 'radio-button-on' : 'radio-button-off'}
-                      size={20}
-                      color={isSelected ? opt.color : colors.textMuted}
-                    />
-                  </Pressable>
-                );
-              })}
-            </View>
-
-            {selectedLevel === 'Não sei jogar' && (
-              <Pressable
-                style={styles.tutorialButton}
-                onPress={() => setShowTutorial(true)}
-              >
-                <Ionicons name="help-circle-outline" size={18} color="#f7b267" />
-                <Text style={styles.tutorialButtonText}>Ver tutorial de como jogar xadrez</Text>
-              </Pressable>
-            )}
-
-            <View style={styles.modalButtonsRow}>
-              <Pressable
-                style={[styles.modalCancelButton, { borderColor: colors.border }]}
-                onPress={() => setShowOnboarding(false)}
-              >
-                <Text style={[styles.modalCancelText, { color: colors.textSecondary }]}>Cancelar</Text>
-              </Pressable>
-
-              <Pressable
-                style={[styles.modalConfirmButton, { backgroundColor: colors.primary }]}
-                onPress={handleConfirmOnboarding}
-              >
-                <Text style={styles.modalConfirmText}>Começar a Jogar</Text>
-              </Pressable>
-            </View>
-          </View>
-        </View>
-      </Modal>
-
-      {/* Modal de Tutorial Simples de Xadrez */}
-      <Modal
-        visible={showTutorial}
-        animationType="fade"
-        transparent={true}
-        onRequestClose={() => setShowTutorial(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View
-            style={[
-              styles.tutorialBox,
-              { backgroundColor: colors.surface, borderColor: colors.borderStrong },
-            ]}
-          >
-            <View style={styles.tutorialHeader}>
-              <Text style={styles.tutorialHeaderIcon}>♟️</Text>
-              <Text style={[styles.tutorialTitle, { color: colors.text }]}>Como Jogar Xadrez</Text>
-              <Text style={[styles.tutorialSubtitle, { color: colors.textSecondary }]}>
-                O guia rápido e essencial para você começar agora!
-              </Text>
-            </View>
-
-            <ScrollView style={styles.tutorialScroll}>
-              <View style={[styles.tutorialSection, { backgroundColor: mode === 'dark' ? colors.cardSecondary : '#f7f6f2' }]}>
-                <Text style={[styles.tutorialSectionTitle, { color: colors.accent }]}>
-                  🎯 O Objetivo Principal
-                </Text>
-                <Text style={[styles.tutorialSectionText, { color: colors.text }]}>
-                  O xadrez é um jogo entre dois exércitos. O seu objetivo é dar <Text style={{ fontWeight: 'bold' }}>Xeque-mate</Text> no Rei do adversário: deixá-lo encurralado sob ataque sem que ele tenha nenhuma casa livre para escapar.
-                </Text>
-              </View>
-
-              <View style={[styles.tutorialSection, { backgroundColor: mode === 'dark' ? colors.cardSecondary : '#f7f6f2' }]}>
-                <Text style={[styles.tutorialSectionTitle, { color: colors.primary }]}>
-                  ♞ Como as Peças se Movem
-                </Text>
-
-                <View style={styles.pieceRow}>
-                  <Text style={styles.pieceSymbol}>♙</Text>
-                  <View style={styles.pieceDescWrap}>
-                    <Text style={[styles.pieceName, { color: colors.text }]}>Peão</Text>
-                    <Text style={[styles.pieceText, { color: colors.textSecondary }]}>
-                      Anda 1 casa para frente (ou 2 no primeiro lance). Captura 1 casa na diagonal à frente.
-                    </Text>
-                  </View>
-                </View>
-
-                <View style={styles.pieceRow}>
-                  <Text style={styles.pieceSymbol}>♖</Text>
-                  <View style={styles.pieceDescWrap}>
-                    <Text style={[styles.pieceName, { color: colors.text }]}>Torre</Text>
-                    <Text style={[styles.pieceText, { color: colors.textSecondary }]}>
-                      Move-se em linha reta para frente, trás e pros lados por quantas casas quiser.
-                    </Text>
-                  </View>
-                </View>
-
-                <View style={styles.pieceRow}>
-                  <Text style={styles.pieceSymbol}>♘</Text>
-                  <View style={styles.pieceDescWrap}>
-                    <Text style={[styles.pieceName, { color: colors.text }]}>Cavalo</Text>
-                    <Text style={[styles.pieceText, { color: colors.textSecondary }]}>
-                      Move-se em formato de "L" (2 casas em uma direção e 1 para o lado). É a única que pula outras peças!
-                    </Text>
-                  </View>
-                </View>
-
-                <View style={styles.pieceRow}>
-                  <Text style={styles.pieceSymbol}>♗</Text>
-                  <View style={styles.pieceDescWrap}>
-                    <Text style={[styles.pieceName, { color: colors.text }]}>Bispo</Text>
-                    <Text style={[styles.pieceText, { color: colors.textSecondary }]}>
-                      Move-se nas diagonais da mesma cor em que começou o jogo, quantas casas quiser.
-                    </Text>
-                  </View>
-                </View>
-
-                <View style={styles.pieceRow}>
-                  <Text style={styles.pieceSymbol}>♕</Text>
-                  <View style={styles.pieceDescWrap}>
-                    <Text style={[styles.pieceName, { color: colors.text }]}>Dama (Rainha)</Text>
-                    <Text style={[styles.pieceText, { color: colors.textSecondary }]}>
-                      A mais poderosa! Junta os movimentos da Torre e do Bispo: retas e diagonais livres.
-                    </Text>
-                  </View>
-                </View>
-
-                <View style={styles.pieceRow}>
-                  <Text style={styles.pieceSymbol}>♔</Text>
-                  <View style={styles.pieceDescWrap}>
-                    <Text style={[styles.pieceName, { color: colors.text }]}>Rei</Text>
-                    <Text style={[styles.pieceText, { color: colors.textSecondary }]}>
-                      A peça vital! Anda apenas 1 casa em qualquer direção. Nunca pode se colocar em perigo.
-                    </Text>
-                  </View>
-                </View>
-              </View>
-
-              <View style={[styles.tutorialSection, { backgroundColor: mode === 'dark' ? colors.cardSecondary : '#f7f6f2' }]}>
-                <Text style={[styles.tutorialSectionTitle, { color: '#5fa8ff' }]}>
-                  💡 3 Dicas de Ouro
-                </Text>
-                <Text style={[styles.tutorialBullet, { color: colors.text }]}>
-                  1. Controle o centro do tabuleiro com seus peões e cavalos logo no início.
-                </Text>
-                <Text style={[styles.tutorialBullet, { color: colors.text }]}>
-                  2. Não deixe peças desprotegidas e preste atenção aos lances do adversário.
-                </Text>
-                <Text style={[styles.tutorialBullet, { color: colors.text }]}>
-                  3. O computador no nível Fácil comete erros propositais para você aprender jogando!
-                </Text>
-              </View>
-            </ScrollView>
-
+        {/* ===== PALCO ===== */}
+        <View style={[styles.stage, { paddingTop: insets.top + 12 }]}>
+          {/* Cabeçalho */}
+          <View style={styles.header}>
             <Pressable
-              style={[styles.closeTutorialButton, { backgroundColor: colors.primary }]}
-              onPress={() => setShowTutorial(false)}
+              accessibilityRole="button"
+              accessibilityLabel="Abrir perfil"
+              onPress={() => go('/profile')}
+              style={({ pressed }) => [styles.headerProfile, { opacity: pressed ? 0.7 : 1 }]}
             >
-              <Ionicons name="checkmark-circle" size={20} color="#ffffff" />
-              <Text style={styles.closeTutorialText}>Entendi! Vamos jogar</Text>
+              <View style={styles.avatar}>
+                <Text style={styles.avatarText}>{initial ?? '♔'}</Text>
+              </View>
+              <View style={styles.flex}>
+                <Text numberOfLines={1} style={styles.brandName}>
+                  {profile ? profile.name : 'WinXadrez'}
+                </Text>
+                <Text numberOfLines={1} style={styles.brandSub}>
+                  {profile ? `Nível ${levels.totalLevel} · ${profile.skill_level}` : 'Xadrez offline'}
+                </Text>
+              </View>
+            </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Abrir configurações"
+              onPress={() => go('/settings')}
+              style={({ pressed }) => [styles.glassButton, { opacity: pressed ? 0.7 : 1 }]}
+            >
+              <Ionicons name="settings-outline" size={22} color={IVORY} />
             </Pressable>
           </View>
-        </View>
-      </Modal>
 
-      {/* Modal: Escolha do Nível para Iniciar a Partida */}
-      <Modal
-        visible={showLevelModal}
-        animationType="fade"
-        transparent={true}
-        onRequestClose={() => setShowLevelModal(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={[styles.levelSelectBox, { backgroundColor: colors.surface, borderColor: colors.borderStrong }]}>
-            <View style={styles.levelSelectHeader}>
-              <View style={[styles.levelSelectBadge, { backgroundColor: 'rgba(129, 182, 76, 0.15)' }]}>
-                <Ionicons name="game-controller" size={24} color="#81b64c" />
-              </View>
-              <Pressable
-                style={styles.modalCloseBtn}
-                onPress={() => setShowLevelModal(false)}
+          {/* Cena: tabuleiro em perspectiva + rei flutuante */}
+          <View style={styles.scene}>
+            <View style={styles.glowCenter} pointerEvents="none">
+              <Animated.View style={styles.glowInner}>
+                <Animated.View style={{ transform: [{ scale: glowScale }], alignItems: 'center', justifyContent: 'center' }}>
+                  <Glow size={300} color={GOLD} />
+                </Animated.View>
+              </Animated.View>
+            </View>
+
+            <Animated.View
+              pointerEvents="none"
+              style={[
+                styles.boardWrap,
+                {
+                  opacity: intro,
+                  transform: [
+                    { translateY: parallax },
+                    { translateY: intro.interpolate({ inputRange: [0, 1], outputRange: [50, 0] }) },
+                  ],
+                },
+              ]}
+            >
+              <Animated.View
+                style={[
+                  styles.board,
+                  {
+                    width: boardSize,
+                    height: boardSize,
+                    transform: [{ perspective: 900 }, { rotateX: tilt }, { rotateZ: '-16deg' }],
+                  },
+                ]}
               >
-                <Ionicons name="close" size={22} color={colors.textSecondary} />
-              </Pressable>
-            </View>
-
-            <Text style={[styles.levelSelectTitle, { color: colors.text }]}>
-              Em qual nível quer começar?
-            </Text>
-            <Text style={[styles.levelSelectSub, { color: colors.textSecondary }]}>
-              Escolha a dificuldade do bot para este confronto:
-            </Text>
-
-            <View style={styles.difficultyOptionList}>
-              {[
-                {
-                  level: 'Fácil' as GameDifficulty,
-                  title: 'Fácil',
-                  desc: 'Iniciante • Bot com jogadas simples e acessíveis',
-                  icon: 'school-outline',
-                  color: '#81b64c',
-                },
-                {
-                  level: 'Médio' as GameDifficulty,
-                  title: 'Médio',
-                  desc: 'Intermediário • Bot tático e balanceado',
-                  icon: 'hardware-chip-outline',
-                  color: '#38bdf8',
-                },
-                {
-                  level: 'Difícil' as GameDifficulty,
-                  title: 'Difícil',
-                  desc: 'Avançado • Bot desafiador e calculista',
-                  icon: 'flame-outline',
-                  color: '#f87171',
-                },
-              ].map((opt) => (
-                <Pressable
-                  key={opt.level}
-                  style={[
-                    styles.difficultyOptionCard,
-                    {
-                      backgroundColor: mode === 'dark' ? colors.cardSecondary : '#f7f6f2',
-                      borderColor: colors.border,
-                    },
-                  ]}
-                  onPress={() => handleSelectGameDifficulty(opt.level)}
-                >
-                  <View style={[styles.diffIconWrap, { backgroundColor: opt.color + '22' }]}>
-                    <Ionicons name={opt.icon as any} size={22} color={opt.color} />
+                {Array.from({ length: 8 }).map((_, r) => (
+                  <View key={r} style={styles.boardRow}>
+                    {Array.from({ length: 8 }).map((__, c) => (
+                      <View
+                        key={c}
+                        style={{ flex: 1, backgroundColor: (r + c) % 2 === 0 ? BOARD_LIGHT : BOARD_DARK }}
+                      />
+                    ))}
                   </View>
-                  <View style={styles.diffInfo}>
-                    <Text style={[styles.diffTitle, { color: colors.text }]}>{opt.title}</Text>
-                    <Text style={[styles.diffDesc, { color: colors.textSecondary }]}>{opt.desc}</Text>
-                  </View>
-                  <Ionicons name="chevron-forward" size={18} color={opt.color} />
-                </Pressable>
-              ))}
-            </View>
+                ))}
+                <Animated.View
+                  style={[styles.sweep, { height: boardSize * 1.8, transform: [{ translateX: sweepX }, { rotate: '28deg' }] }]}
+                />
+              </Animated.View>
+            </Animated.View>
+
+            <Fade color={STAGE} from="bottom" height={110} />
+
+            {dustSpecks.map((s, i) => (
+              <Speck key={i} {...s} enabled={!reduceMotion} />
+            ))}
+
+            {/* Sombra do rei sobre o tabuleiro */}
+            <Animated.View
+              pointerEvents="none"
+              style={[styles.kingShadow, { opacity: shadowOpacity, transform: [{ scaleX: shadowScale }] }]}
+            />
+
+            {/* Rei */}
+            <Animated.View
+              pointerEvents="none"
+              style={[
+                styles.kingWrap,
+                {
+                  opacity: intro,
+                  transform: [
+                    { translateY: intro.interpolate({ inputRange: [0, 1], outputRange: [-40, 0] }) },
+                    { translateY: kingFloat },
+                  ],
+                },
+              ]}
+            >
+              <Text style={styles.king}>♚</Text>
+            </Animated.View>
+          </View>
+
+          {/* Mensagem e ações */}
+          <View style={styles.stageText}>
+            {hasActiveMatch && (
+              <View style={styles.liveChip}>
+                <View style={styles.liveDot} />
+                <Text style={styles.liveText}>Partida em andamento</Text>
+              </View>
+            )}
+            <Text style={styles.heroTitle}>
+              {hasActiveMatch ? 'Seu rei ainda está em jogo.' : 'Cada lance muda o jogo.'}
+            </Text>
+            <Text style={styles.heroSubtitle}>
+              {hasActiveMatch
+                ? 'Volte ao tabuleiro e termine o que começou.'
+                : 'Enfrente um bot no seu nível ou desafie um amigo no mesmo aparelho.'}
+            </Text>
+
+            <ScalePress
+              label={hasActiveMatch ? 'Continuar partida' : 'Jogar contra o bot'}
+              onPress={() => handleStartGamePress('bot')}
+              style={styles.goldButton}
+            >
+              <Ionicons name={hasActiveMatch ? 'play-forward' : 'play'} size={20} color={ON_GOLD} />
+              <Text style={styles.goldButtonText}>{hasActiveMatch ? 'Continuar partida' : 'Jogar contra o bot'}</Text>
+            </ScalePress>
+
+            <ScalePress
+              label="Jogar com um amigo"
+              onPress={() => handleStartGamePress('pvp')}
+              style={styles.ghostButton}
+              containerStyle={{ marginTop: 10 }}
+            >
+              <Ionicons name="people-outline" size={20} color={IVORY} />
+              <Text style={styles.ghostButtonText}>Jogar com um amigo</Text>
+            </ScalePress>
           </View>
         </View>
-      </Modal>
-    </ScrollView>
+
+        {/* ===== ESTATÍSTICAS (sobrepostas ao palco) ===== */}
+        <View style={[styles.stats, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          <View style={styles.stat}>
+            <Text style={[styles.statValue, { color: colors.text }]}>{profile ? profile.matches_count : 0}</Text>
+            <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Partidas</Text>
+          </View>
+          <View style={[styles.statDivider, { backgroundColor: colors.border }]} />
+          <View style={styles.stat}>
+            <Text style={[styles.statValue, { color: colors.primary }]}>{winRate}</Text>
+            <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Vitórias</Text>
+          </View>
+          <View style={[styles.statDivider, { backgroundColor: colors.border }]} />
+          <View style={styles.stat}>
+            <Text style={[styles.statValue, { color: colors.accent }]}>{profile ? profile.rating : 0}</Text>
+            <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Pontos</Text>
+          </View>
+        </View>
+
+        {/* ===== BENTO ===== */}
+        <View style={styles.body}>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>Treinar</Text>
+          <BentoTile tile={trainTiles[0]} wide onPress={() => go(trainTiles[0].route)} />
+          <View style={styles.tileRow}>
+            <BentoTile tile={trainTiles[1]} onPress={() => go(trainTiles[1].route)} />
+            <BentoTile tile={trainTiles[2]} onPress={() => go(trainTiles[2].route)} />
+          </View>
+
+          <Text style={[styles.sectionTitle, { color: colors.text, marginTop: 28 }]}>Progresso</Text>
+          <View style={styles.tileRow}>
+            <BentoTile tile={progressTiles[0]} onPress={() => go(progressTiles[0].route)} />
+            <BentoTile tile={progressTiles[1]} onPress={() => go(progressTiles[1].route)} />
+          </View>
+          <View style={styles.tileRow}>
+            <BentoTile tile={progressTiles[2]} onPress={() => go(progressTiles[2].route)} />
+            <BentoTile tile={progressTiles[3]} onPress={() => go(progressTiles[3].route)} />
+          </View>
+          <BentoTile tile={profileTile} wide onPress={() => go(profileTile.route)} />
+        </View>
+      </Animated.ScrollView>
+
+      {/* ===== Onboarding ===== */}
+      <Sheet visible={showOnboarding} onClose={() => setShowOnboarding(false)}>
+        <Text style={[styles.sheetTitle, { color: colors.text }]}>Crie seu perfil</Text>
+        <Text style={[styles.sheetSub, { color: colors.textSecondary }]}>
+          Com seu nome e nível, o bot começa na dificuldade certa para você.
+        </Text>
+
+        <Text style={[styles.fieldLabel, { color: colors.text }]}>Nome ou apelido</Text>
+        <TextInput
+          style={[
+            styles.textInput,
+            { backgroundColor: colors.cardSecondary ?? colors.chipBg, color: colors.text, borderColor: colors.borderStrong },
+          ]}
+          placeholder="Ex.: Mestre Carlos"
+          placeholderTextColor={colors.textMuted}
+          value={playerName}
+          onChangeText={setPlayerName}
+          maxLength={25}
+          autoFocus
+        />
+
+        <Text style={[styles.fieldLabel, { color: colors.text, marginTop: 16 }]}>Seu nível de xadrez</Text>
+        <View style={styles.optionList}>
+          {skillOptions.map((opt) => (
+            <OptionRow
+              key={opt.level}
+              icon={opt.icon}
+              title={opt.title}
+              desc={opt.desc}
+              selected={selectedLevel === opt.level}
+              trailing="radio"
+              onPress={() => handleSelectLevel(opt.level)}
+            />
+          ))}
+        </View>
+
+        {selectedLevel === 'Não sei jogar' && (
+          <Pressable style={styles.linkButton} onPress={() => setShowTutorial(true)}>
+            <Ionicons name="help-circle-outline" size={18} color={colors.accent} />
+            <Text style={[styles.linkButtonText, { color: colors.accent }]}>Ver como se joga xadrez</Text>
+          </Pressable>
+        )}
+
+        <View style={styles.sheetActions}>
+          <Pressable
+            accessibilityRole="button"
+            style={[styles.cancelButton, { borderColor: colors.borderStrong }]}
+            onPress={() => setShowOnboarding(false)}
+          >
+            <Text style={[styles.cancelText, { color: colors.textSecondary }]}>Cancelar</Text>
+          </Pressable>
+          <Pressable accessibilityRole="button" style={[styles.confirmButton, { flex: 2 }]} onPress={handleConfirmOnboarding}>
+            <Text style={styles.confirmText}>Começar a jogar</Text>
+          </Pressable>
+        </View>
+      </Sheet>
+
+      {/* ===== Tutorial ===== */}
+      <Sheet visible={showTutorial} onClose={() => setShowTutorial(false)}>
+        <Text style={[styles.sheetTitle, { color: colors.text }]}>Como jogar xadrez</Text>
+        <Text style={[styles.sheetSub, { color: colors.textSecondary }]}>O essencial para fazer seu primeiro lance.</Text>
+
+        <ScrollView style={styles.tutorialScroll} showsVerticalScrollIndicator={false}>
+          <Text style={[styles.tutorialHeading, { color: colors.text }]}>Objetivo</Text>
+          <Text style={[styles.tutorialText, { color: colors.textSecondary }]}>
+            Dar xeque-mate no rei adversário: deixá-lo sob ataque, sem nenhuma casa livre para escapar.
+          </Text>
+
+          <Text style={[styles.tutorialHeading, { color: colors.text, marginTop: 20 }]}>Como as peças se movem</Text>
+          {pieces.map((p, index) => (
+            <View
+              key={p.name}
+              style={[styles.pieceRow, index > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border }]}
+            >
+              <Text style={[styles.pieceSymbol, { color: GOLD }]}>{p.symbol}</Text>
+              <View style={styles.flex}>
+                <Text style={[styles.pieceName, { color: colors.text }]}>{p.name}</Text>
+                <Text style={[styles.pieceText, { color: colors.textSecondary }]}>{p.text}</Text>
+              </View>
+            </View>
+          ))}
+
+          <Text style={[styles.tutorialHeading, { color: colors.text, marginTop: 20 }]}>Três dicas</Text>
+          <Text style={[styles.tutorialText, { color: colors.textSecondary }]}>
+            1. Controle o centro com peões e cavalos logo no início.{'\n'}
+            2. Não deixe peças desprotegidas e observe cada lance do adversário.{'\n'}
+            3. No nível fácil o bot erra de propósito, para você aprender jogando.
+          </Text>
+        </ScrollView>
+
+        <Pressable accessibilityRole="button" style={[styles.confirmButton, { alignSelf: 'stretch', marginTop: 8 }]} onPress={() => setShowTutorial(false)}>
+          <Text style={styles.confirmText}>Entendi</Text>
+        </Pressable>
+      </Sheet>
+
+      {/* ===== Dificuldade ===== */}
+      <Sheet visible={showLevelModal} onClose={() => setShowLevelModal(false)}>
+        <Text style={[styles.sheetTitle, { color: colors.text }]}>Escolha a dificuldade</Text>
+        <Text style={[styles.sheetSub, { color: colors.textSecondary }]}>Você enfrentará o bot neste nível.</Text>
+        <View style={styles.optionList}>
+          {difficultyOptions.map((opt) => (
+            <OptionRow
+              key={opt.level}
+              icon={opt.icon}
+              title={opt.title}
+              desc={opt.desc}
+              trailing="chevron"
+              onPress={() => handleSelectGameDifficulty(opt.level)}
+            />
+          ))}
+        </View>
+      </Sheet>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
+  flex: { flex: 1 },
+  fade: { position: 'absolute', left: 0, right: 0 },
+  overscroll: { position: 'absolute', top: -900, left: 0, right: 0, height: 900, backgroundColor: STAGE },
+
+  // Palco
+  stage: {
+    backgroundColor: STAGE,
+    borderBottomLeftRadius: 36,
+    borderBottomRightRadius: 36,
+    overflow: 'hidden',
+    paddingBottom: 56,
   },
-  content: {
-    paddingHorizontal: 18,
-    paddingTop: 18,
-    paddingBottom: 32,
-  },
-  topBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 18,
-  },
-  logoWrap: {
+  header: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 20 },
+  headerProfile: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 48 },
+  avatar: {
     width: 46,
     height: 46,
-    borderRadius: 14,
-    borderWidth: 1,
+    borderRadius: 23,
+    borderWidth: 1.5,
+    borderColor: GOLD,
+    backgroundColor: 'rgba(233,196,106,0.12)',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  logoMark: {
-    color: '#f7d36d',
-    fontSize: 26,
-    fontWeight: '900',
-  },
-  topMeta: {
-    flex: 1,
-    marginLeft: 12,
-  },
-  brandName: {
-    fontSize: 18,
-    fontWeight: '800',
-  },
-  brandSub: {
-    fontSize: 11,
-    marginTop: 2,
-    letterSpacing: 0.6,
-  },
-  profileButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    borderRadius: 999,
-    borderWidth: 1,
-  },
-  profileButtonText: {
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  heroCard: {
-    position: 'relative',
-    borderRadius: 28,
-    borderWidth: 1,
-    padding: 20,
-    overflow: 'hidden',
-  },
-  heroShell: {
-    marginBottom: 18,
-    borderRadius: 28,
-    shadowColor: '#81b64c',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.18,
-    shadowRadius: 12,
-    elevation: 4,
-  },
-  heroReflection: {
-    position: 'absolute',
-    left: 20,
-    right: 20,
-    bottom: 12,
-    height: 1,
-    backgroundColor: 'rgba(255,255,255,0.14)',
-  },
-  particleTrack: {
-    position: 'absolute',
-    top: 31,
-    left: 24,
-    right: 24,
-    height: 1,
-    backgroundColor: 'rgba(129,182,76,0.16)',
-  },
-  particle: {
-    position: 'absolute',
-    top: 26,
-    left: 28,
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: '#b9f27c',
-    shadowColor: '#81b64c',
-    shadowOpacity: 0.8,
-    shadowRadius: 8,
-  },
-  particleBubble: {
-    position: 'absolute',
-    top: 30,
-    left: 28,
-    backgroundColor: '#f7d36d',
-  },
-  heroContent: {
-    position: 'relative',
-    zIndex: 1,
-  },
-  eyebrow: {
-    color: '#81b64c',
-    fontWeight: '800',
-    fontSize: 12,
-    letterSpacing: 1.2,
-    textTransform: 'uppercase',
-    marginBottom: 8,
-  },
-  heroTitle: {
-    fontSize: 28,
-    fontWeight: '900',
-    lineHeight: 32,
-    marginBottom: 8,
-  },
-  heroSubtitle: {
-    fontSize: 13,
-    lineHeight: 18,
-    marginBottom: 16,
-  },
-  heroActions: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  primaryButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    flex: 1,
-    paddingVertical: 12,
-    borderRadius: 14,
-  },
-  primaryButtonText: {
-    color: '#ffffff',
-    fontWeight: '800',
-    fontSize: 14,
-  },
-  secondaryButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    flex: 1,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
-    paddingVertical: 12,
-    borderRadius: 14,
-  },
-  secondaryButtonText: {
-    color: '#171614',
-    fontWeight: '800',
-    fontSize: 14,
-  },
-  statsRow: {
-    flexDirection: 'row',
-    gap: 10,
-    marginBottom: 20,
-    padding: 12,
-    borderRadius: 20,
-    borderWidth: 1,
-    elevation: 3,
-  },
-  statCard: {
-    flex: 1,
-    paddingVertical: 8,
-    alignItems: 'center',
-  },
-  statValue: {
-    fontWeight: '800',
-    fontSize: 18,
-    marginBottom: 4,
-  },
-  statLabel: {
-    fontSize: 11,
-    fontWeight: '600',
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: '800',
-  },
-  list: {
-    gap: 10,
-  },
-  card: {
-    borderRadius: 18,
-    borderWidth: 1,
-    padding: 14,
-    flexDirection: 'row',
-    alignItems: 'center',
-    overflow: 'hidden',
-    backgroundColor: '#ffffff',
-  },
-  iconWrapper: {
-    width: 44,
-    height: 44,
-    borderRadius: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 12,
-    borderWidth: 1,
-  },
-  cardInfo: {
-    flex: 1,
-  },
-  cardTitle: {
-    fontSize: 15,
-    fontWeight: '800',
-    marginBottom: 2,
-  },
-  cardSubtitle: {
-    fontSize: 12,
-  },
-
-  // Modal styles
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.75)',
-    justifyContent: 'center',
-    padding: 20,
-  },
-  modalBox: {
-    borderRadius: 24,
-    borderWidth: 1,
-    padding: 20,
-    elevation: 10,
-  },
-  modalHeader: {
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  modalBadge: {
+  avatarText: { color: GOLD, fontSize: 20, fontWeight: '800' },
+  brandName: { color: IVORY, fontSize: 18, fontWeight: '700', letterSpacing: -0.3 },
+  brandSub: { color: 'rgba(243,234,211,0.6)', fontSize: 13, marginTop: 1 },
+  glassButton: {
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: 'rgba(129, 182, 76, 0.15)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 10,
-  },
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: '800',
-    textAlign: 'center',
-    marginBottom: 6,
-  },
-  modalSub: {
-    fontSize: 13,
-    textAlign: 'center',
-    lineHeight: 18,
-  },
-  inputGroup: {
-    marginBottom: 8,
-  },
-  inputLabel: {
-    fontSize: 13,
-    fontWeight: '700',
-    marginBottom: 8,
-  },
-  textInput: {
+    backgroundColor: 'rgba(255,255,255,0.08)',
     borderWidth: 1,
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    fontSize: 15,
-  },
-  levelList: {
-    gap: 8,
-    marginTop: 8,
-    marginBottom: 14,
-  },
-  levelCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 12,
-    borderRadius: 14,
-  },
-  levelIconWrap: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
+    borderColor: 'rgba(255,255,255,0.14)',
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 10,
-  },
-  levelInfo: {
-    flex: 1,
-  },
-  levelTitle: {
-    fontSize: 14,
-    fontWeight: '700',
-    marginBottom: 2,
-  },
-  levelDesc: {
-    fontSize: 11,
-  },
-  tutorialButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    paddingVertical: 8,
-    marginBottom: 14,
-  },
-  tutorialButtonText: {
-    color: '#f7b267',
-    fontSize: 13,
-    fontWeight: '700',
-    textDecorationLine: 'underline',
-  },
-  modalButtonsRow: {
-    flexDirection: 'row',
-    gap: 10,
-    marginTop: 6,
-  },
-  modalCancelButton: {
-    flex: 1,
-    paddingVertical: 12,
-    alignItems: 'center',
-    borderRadius: 12,
-    borderWidth: 1,
-  },
-  modalCancelText: {
-    fontSize: 14,
-    fontWeight: '700',
-  },
-  modalConfirmButton: {
-    flex: 2,
-    paddingVertical: 12,
-    alignItems: 'center',
-    borderRadius: 12,
-  },
-  modalConfirmText: {
-    color: '#ffffff',
-    fontSize: 14,
-    fontWeight: '800',
   },
 
-  // Tutorial modal
-  tutorialBox: {
-    maxHeight: '85%',
-    borderRadius: 24,
-    borderWidth: 1,
-    padding: 20,
-    elevation: 10,
+  // Cena
+  scene: { height: 300, marginTop: 4, alignItems: 'center', overflow: 'hidden' },
+  glowCenter: { position: 'absolute', top: 0, left: 0, right: 0, height: 220, alignItems: 'center', justifyContent: 'center' },
+  glowInner: { alignItems: 'center', justifyContent: 'center' },
+  boardWrap: { position: 'absolute', top: 14, alignItems: 'center' },
+  board: {
+    borderRadius: 8,
+    overflow: 'hidden',
+    borderWidth: 3,
+    borderColor: 'rgba(233,196,106,0.55)',
+    backgroundColor: BOARD_DARK,
   },
-  tutorialHeader: {
+  boardRow: { flex: 1, flexDirection: 'row' },
+  sweep: {
+    position: 'absolute',
+    top: -40,
+    left: '50%',
+    width: 64,
+    backgroundColor: 'rgba(233,196,106,0.2)',
+  },
+  kingWrap: { position: 'absolute', top: 14, alignItems: 'center' },
+  king: {
+    fontSize: 96,
+    lineHeight: 110,
+    color: GOLD,
+    includeFontPadding: false,
+    textShadowColor: 'rgba(233,196,106,0.75)',
+    textShadowRadius: 28,
+    textShadowOffset: { width: 0, height: 0 },
+  },
+  kingShadow: {
+    position: 'absolute',
+    top: 148,
+    width: 96,
+    height: 22,
+    borderRadius: 48,
+    backgroundColor: '#000000',
+  },
+
+  // Texto do palco
+  stageText: { paddingHorizontal: 20, marginTop: 4 },
+  liveChip: {
+    alignSelf: 'flex-start',
+    flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 14,
-  },
-  tutorialHeaderIcon: {
-    fontSize: 32,
-    marginBottom: 4,
-  },
-  tutorialTitle: {
-    fontSize: 20,
-    fontWeight: '900',
-  },
-  tutorialSubtitle: {
-    fontSize: 12,
-    textAlign: 'center',
-    marginTop: 2,
-  },
-  tutorialScroll: {
-    marginBottom: 14,
-  },
-  tutorialSection: {
-    borderRadius: 16,
-    padding: 14,
+    gap: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: 'rgba(233,196,106,0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(233,196,106,0.35)',
     marginBottom: 12,
   },
-  tutorialSectionTitle: {
-    fontSize: 14,
-    fontWeight: '800',
-    marginBottom: 6,
-  },
-  tutorialSectionText: {
-    fontSize: 13,
-    lineHeight: 18,
-  },
-  pieceRow: {
+  liveDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: GOLD },
+  liveText: { color: GOLD, fontSize: 12, fontWeight: '600' },
+  heroTitle: { color: IVORY, fontSize: 32, lineHeight: 36, fontWeight: '800', letterSpacing: -1, marginBottom: 8 },
+  heroSubtitle: { color: 'rgba(243,234,211,0.65)', fontSize: 15, lineHeight: 22, marginBottom: 22 },
+  goldButton: {
+    minHeight: 58,
+    borderRadius: 18,
+    backgroundColor: GOLD,
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 10,
+    justifyContent: 'center',
+    gap: 10,
+    shadowColor: GOLD,
+    shadowOpacity: 0.45,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 8,
+  },
+  goldButtonText: { color: ON_GOLD, fontSize: 17, fontWeight: '800' },
+  ghostButton: {
+    minHeight: 52,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.16)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
     gap: 10,
   },
-  pieceSymbol: {
-    fontSize: 26,
-    color: '#f7d36d',
-    width: 32,
-    textAlign: 'center',
-  },
-  pieceDescWrap: {
-    flex: 1,
-  },
-  pieceName: {
-    fontSize: 13,
-    fontWeight: '700',
-    marginBottom: 2,
-  },
-  pieceText: {
-    fontSize: 11,
-    lineHeight: 15,
-  },
-  tutorialBullet: {
-    fontSize: 12,
-    lineHeight: 18,
-    marginTop: 4,
-  },
-  closeTutorialButton: {
+  ghostButtonText: { color: IVORY, fontSize: 15, fontWeight: '600' },
+
+  // Estatísticas
+  stats: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    paddingVertical: 12,
-    borderRadius: 14,
+    marginHorizontal: 20,
+    marginTop: -34,
+    paddingVertical: 16,
+    borderRadius: 22,
+    borderWidth: 1,
+    shadowColor: '#000000',
+    shadowOpacity: 0.25,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 10 },
+    elevation: 10,
   },
-  closeTutorialText: {
-    color: '#ffffff',
-    fontSize: 15,
-    fontWeight: '800',
-  },
-  levelSelectBox: {
-    width: '100%',
+  stat: { flex: 1, alignItems: 'center' },
+  statValue: { fontSize: 24, fontWeight: '800', letterSpacing: -0.5 },
+  statLabel: { fontSize: 12, fontWeight: '500', marginTop: 2 },
+  statDivider: { width: StyleSheet.hairlineWidth, height: 34 },
+
+  // Bento
+  body: { paddingHorizontal: 20, marginTop: 28 },
+  sectionTitle: { fontSize: 20, fontWeight: '800', letterSpacing: -0.4, marginBottom: 12 },
+  tileRow: { flexDirection: 'row', gap: 12, marginTop: 12 },
+  tileOuter: { flex: 1 },
+  tileOuterWide: { marginTop: 12 },
+  tile: {
+    minHeight: 138,
     borderRadius: 24,
     borderWidth: 1,
-    padding: 22,
-  },
-  levelSelectHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    padding: 16,
     justifyContent: 'space-between',
-    marginBottom: 14,
+    overflow: 'hidden',
   },
-  levelSelectBadge: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  modalCloseBtn: {
-    padding: 6,
-  },
-  levelSelectTitle: {
-    fontSize: 20,
-    fontWeight: '800',
-    marginBottom: 6,
-  },
-  levelSelectSub: {
-    fontSize: 13,
-    lineHeight: 18,
-    marginBottom: 18,
-  },
-  difficultyOptionList: {
-    gap: 12,
-  },
-  difficultyOptionCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 14,
-    borderRadius: 16,
+  tileWide: { minHeight: 112 },
+  glyph: { position: 'absolute', right: -6, bottom: -30, fontSize: 124, opacity: 0.06 },
+  tileIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 13,
     borderWidth: 1,
-    gap: 12,
-  },
-  diffIconWrap: {
-    width: 42,
-    height: 42,
-    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  diffInfo: {
-    flex: 1,
+  tileTitle: { fontSize: 17, fontWeight: '700', letterSpacing: -0.2 },
+  tileSub: { fontSize: 13, marginTop: 2 },
+
+  // Sheets
+  overlay: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.65)' },
+  sheet: {
+    maxHeight: '92%',
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    borderWidth: 1,
+    borderBottomWidth: 0,
+    paddingHorizontal: 20,
+    paddingTop: 10,
   },
-  diffTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    marginBottom: 2,
+  handle: { alignSelf: 'center', width: 40, height: 4, borderRadius: 2, marginBottom: 18, opacity: 0.8 },
+  sheetTitle: { fontSize: 22, fontWeight: '800', letterSpacing: -0.4, marginBottom: 6 },
+  sheetSub: { fontSize: 14, lineHeight: 20, marginBottom: 18 },
+  fieldLabel: { fontSize: 14, fontWeight: '600', marginBottom: 8 },
+  textInput: { minHeight: 50, borderWidth: 1, borderRadius: 12, paddingHorizontal: 14, fontSize: 16 },
+  optionList: { gap: 10 },
+  optionRow: { minHeight: 64, flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12, borderRadius: 14 },
+  optionIcon: { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  optionTitle: { fontSize: 15, fontWeight: '700' },
+  optionDesc: { fontSize: 13, marginTop: 1, lineHeight: 17 },
+  linkButton: { minHeight: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 6 },
+  linkButtonText: { fontSize: 14, fontWeight: '600' },
+  sheetActions: { flexDirection: 'row', gap: 10, marginTop: 14 },
+  cancelButton: { flex: 1, minHeight: 52, borderRadius: 14, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  cancelText: { fontSize: 15, fontWeight: '600' },
+  confirmButton: {
+    minHeight: 52,
+    borderRadius: 14,
+    backgroundColor: GOLD,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  diffDesc: {
-    fontSize: 12,
-    lineHeight: 16,
-  },
+  confirmText: { color: ON_GOLD, fontSize: 15, fontWeight: '800' },
+
+  // Tutorial
+  tutorialScroll: { marginBottom: 12 },
+  tutorialHeading: { fontSize: 16, fontWeight: '700', marginBottom: 6 },
+  tutorialText: { fontSize: 14, lineHeight: 22 },
+  pieceRow: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 12 },
+  pieceSymbol: { width: 36, fontSize: 30, textAlign: 'center' },
+  pieceName: { fontSize: 15, fontWeight: '600', marginBottom: 2 },
+  pieceText: { fontSize: 13, lineHeight: 18 },
 });
