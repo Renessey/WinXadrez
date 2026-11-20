@@ -4,11 +4,12 @@ import { NavigationBar } from 'expo-navigation-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { DefaultTheme, DarkTheme, ThemeProvider as NavThemeProvider } from 'expo-router/react-navigation';
 import { Stack } from 'expo-router';
-import { ActivityIndicator, Platform, View, StyleSheet } from 'react-native';
+import { ActivityIndicator, Platform, Pressable, Text, View, StyleSheet } from 'react-native';
 import { useFonts } from 'expo-font';
 import { Ionicons } from '@expo/vector-icons';
 
 import { ThemeProvider, useAppTheme } from '../src/context/ThemeContext';
+import { initializeDatabase } from '../src/database/db';
 
 function MainLayout() {
   const { colors, mode } = useAppTheme();
@@ -82,6 +83,59 @@ export default function RootLayout() {
     );
   }
 
+  return <DatabaseGate />;
+}
+
+function DatabaseGate() {
+  const [databaseReady, setDatabaseReady] = React.useState(false);
+  const [databaseError, setDatabaseError] = React.useState<string | null>(null);
+  const [attempt, setAttempt] = React.useState(0);
+
+  useEffect(() => {
+    let active = true;
+    initializeDatabase().then(
+      () => {
+        if (active) setDatabaseReady(true);
+      },
+      (error: unknown) => {
+        console.error('Erro ao inicializar o banco de dados:', error);
+        if (active) {
+          setDatabaseError(error instanceof Error ? error.message : String(error));
+        }
+      }
+    );
+    return () => {
+      active = false;
+    };
+  }, [attempt]);
+
+  if (databaseError) {
+    return (
+      <View style={styles.errorScreen}>
+        <Text style={styles.errorTitle}>Não foi possível iniciar o jogo.</Text>
+        <Text style={styles.errorMessage}>{databaseError}</Text>
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => {
+            setDatabaseError(null);
+            setAttempt((current) => current + 1);
+          }}
+          style={styles.retryButton}
+        >
+          <Text style={styles.retryButtonText}>Tentar novamente</Text>
+        </Pressable>
+      </View>
+    );
+  }
+
+  if (!databaseReady) {
+    return (
+      <View style={styles.loading}>
+        <ActivityIndicator size="large" color="#81b64c" />
+      </View>
+    );
+  }
+
   return (
     <ThemeProvider>
       <MainLayout />
@@ -92,4 +146,9 @@ export default function RootLayout() {
 const styles = StyleSheet.create({
   appShell: { flex: 1 },
   loading: { flex: 1, backgroundColor: '#000000', alignItems: 'center', justifyContent: 'center' },
+  errorScreen: { flex: 1, backgroundColor: '#000000', alignItems: 'center', justifyContent: 'center', padding: 24 },
+  errorTitle: { color: '#ffffff', fontSize: 20, fontWeight: '700', textAlign: 'center' },
+  errorMessage: { color: '#cccccc', fontSize: 14, marginTop: 12, textAlign: 'center' },
+  retryButton: { marginTop: 20, paddingHorizontal: 20, paddingVertical: 12, borderRadius: 12, backgroundColor: '#d9b45b' },
+  retryButtonText: { color: '#1b1405', fontWeight: '700' },
 });

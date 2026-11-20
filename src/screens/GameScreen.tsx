@@ -267,7 +267,7 @@ export default function GameScreen() {
   // Save active match state whenever moves or clocks change, or on unmount
   useEffect(() => {
     if (gameMode === 'bot' && !game.isGameOver() && game.history().length > 0 && !matchRecordedRef.current) {
-      saveActiveMatch({
+      void saveActiveMatch({
         fen: game.fen(),
         whiteTime,
         blackTime,

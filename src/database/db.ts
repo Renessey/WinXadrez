@@ -49,22 +49,36 @@ export interface RankingResult {
 }
 
 let dbInstance: SQLite.SQLiteDatabase | null = null;
+let dbInitialization: Promise<void> | null = null;
 export const DATABASE_SCHEMA_VERSION = 2;
 
-export function getDatabase(): SQLite.SQLiteDatabase {
-  if (!dbInstance) {
-    dbInstance = SQLite.openDatabaseSync('winxadrez.db');
-    initDatabase(dbInstance);
+export function initializeDatabase(): Promise<void> {
+  if (dbInstance) return Promise.resolve();
+  if (!dbInitialization) {
+    dbInitialization = SQLite.openDatabaseAsync('winxadrez.db')
+      .then(async (db) => {
+        await initDatabase(db);
+        dbInstance = db;
+      })
+      .catch((error: unknown) => {
+        dbInitialization = null;
+        throw error;
+      });
   }
+  return dbInitialization;
+}
+
+export function getDatabase(): SQLite.SQLiteDatabase {
+  if (!dbInstance) throw new Error('O banco de dados ainda nao foi inicializado.');
   return dbInstance;
 }
 
-function initDatabase(db: SQLite.SQLiteDatabase): void {
-  db.execSync(`
+async function initDatabase(db: SQLite.SQLiteDatabase): Promise<void> {
+  await db.execAsync(`
     PRAGMA journal_mode = WAL;
   `);
 
-  db.execSync(`
+  await db.execAsync(`
     CREATE TABLE IF NOT EXISTS profile (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT NOT NULL,
@@ -109,41 +123,41 @@ function initDatabase(db: SQLite.SQLiteDatabase): void {
     CREATE INDEX IF NOT EXISTS idx_ranking_points ON ranking_players(points DESC);
   `);
 
-  db.withTransactionSync(() => {
-    const versionRow = db.getFirstSync<{ value: string }>(
+  await db.withTransactionAsync(async () => {
+    const versionRow = await db.getFirstAsync<{ value: string }>(
       "SELECT value FROM settings WHERE key = 'database_schema_version'"
     );
     const storedVersion = Number.parseInt(versionRow?.value ?? '0', 10);
 
     if (storedVersion < 1) {
-      db.runSync(
+      await db.runAsync(
         "INSERT INTO settings (key, value) VALUES ('database_schema_version', '1')"
       );
     }
 
     if (storedVersion < 2) {
       // Migration 2: garante que exista somente um perfil local.
-      db.runSync(
+      await db.runAsync(
         'DELETE FROM profile WHERE id NOT IN (SELECT id FROM profile ORDER BY id ASC LIMIT 1)'
       );
-      db.execSync('CREATE UNIQUE INDEX IF NOT EXISTS idx_profile_singleton ON profile ((1));');
-      db.runSync(
+      await db.execAsync('CREATE UNIQUE INDEX IF NOT EXISTS idx_profile_singleton ON profile ((1));');
+      await db.runAsync(
         "INSERT INTO settings (key, value) VALUES ('database_schema_version', '2') ON CONFLICT(key) DO UPDATE SET value = '2'"
       );
     }
 
-    db.execSync(`PRAGMA user_version = ${DATABASE_SCHEMA_VERSION};`);
+    await db.execAsync(`PRAGMA user_version = ${DATABASE_SCHEMA_VERSION};`);
   });
 
   // Reseta todos os pontos para 0 exatamente uma vez para atender à nova regra
   try {
-    const hasReset = db.getFirstSync<{ value: string }>(
+    const hasReset = await db.getFirstAsync<{ value: string }>(
       "SELECT value FROM settings WHERE key = 'zero_points_v2'"
     );
     if (!hasReset) {
-      db.runSync('DELETE FROM ranking_players');
-      db.runSync('UPDATE profile SET rating = 0');
-      db.runSync(
+      await db.runAsync('DELETE FROM ranking_players');
+      await db.runAsync('UPDATE profile SET rating = 0');
+      await db.runAsync(
         "INSERT INTO settings (key, value) VALUES ('zero_points_v2', 'true') ON CONFLICT(key) DO UPDATE SET value = 'true'"
       );
     }
@@ -152,18 +166,18 @@ function initDatabase(db: SQLite.SQLiteDatabase): void {
   }
 
   // Popula os 1000 bots caso a tabela ainda não os tenha
-  seedRankingPlayers(db);
+  await seedRankingPlayers(db);
 
   // Sincroniza o usuário atual na tabela de ranking
-  syncUserInRanking(db);
+  await syncUserInRankingAsync(db);
 }
 
 /**
  * Popula determinística e rapidamente os 1000 bots no SQLite em lote
  */
-function seedRankingPlayers(db: SQLite.SQLiteDatabase): void {
+async function seedRankingPlayers(db: SQLite.SQLiteDatabase): Promise<void> {
   try {
-    const row = db.getFirstSync<{ count: number }>(
+    const row = await db.getFirstAsync<{ count: number }>(
       'SELECT COUNT(*) as count FROM ranking_players WHERE is_user = 0'
     );
     if (row && row.count >= 1000) {
@@ -172,8 +186,8 @@ function seedRankingPlayers(db: SQLite.SQLiteDatabase): void {
 
     const bots = generate1000RankingBots();
 
-    db.withTransactionSync(() => {
-      db.runSync('DELETE FROM ranking_players WHERE is_user = 0');
+    await db.withTransactionAsync(async () => {
+      await db.runAsync('DELETE FROM ranking_players WHERE is_user = 0');
 
       const batchSize = 50;
       for (let i = 0; i < bots.length; i += batchSize) {
@@ -183,7 +197,7 @@ function seedRankingPlayers(db: SQLite.SQLiteDatabase): void {
         for (const b of batch) {
           values.push(b.name, b.points, b.matches, b.wins, b.losses, b.draws, b.tier);
         }
-        db.runSync(
+        await db.runAsync(
           `INSERT OR REPLACE INTO ranking_players (name, points, matches, wins, losses, draws, tier, is_user, position_change)
            VALUES ${placeholders}`,
           values
@@ -233,6 +247,36 @@ export function syncUserInRanking(db?: SQLite.SQLiteDatabase): void {
   } catch (err) {
     console.error('Erro ao sincronizar jogador no ranking:', err);
   }
+}
+
+async function syncUserInRankingAsync(db: SQLite.SQLiteDatabase): Promise<void> {
+  const profile = await db.getFirstAsync<UserProfile>(
+    'SELECT * FROM profile ORDER BY id ASC LIMIT 1'
+  );
+  if (!profile) return;
+
+  const points = Math.max(0, profile.rating);
+  let tier = 'Iniciante';
+  if (points >= 2400) tier = 'Mestre';
+  else if (points >= 1700) tier = 'Diamante';
+  else if (points >= 1100) tier = 'Ouro';
+  else if (points >= 500) tier = 'Prata';
+  else if (points >= 200) tier = 'Bronze';
+
+  await db.runAsync('DELETE FROM ranking_players WHERE is_user = 1');
+  await db.runAsync(
+    `INSERT OR REPLACE INTO ranking_players (name, points, matches, wins, losses, draws, tier, is_user, position_change)
+     VALUES (?, ?, ?, ?, ?, ?, ?, 1, 0)`,
+    [
+      profile.name,
+      points,
+      profile.matches_count,
+      profile.wins_count,
+      profile.losses_count,
+      profile.draws_count,
+      tier,
+    ]
+  );
 }
 
 /**
@@ -444,45 +488,49 @@ export function getProfile(): UserProfile | null {
   }
 }
 
-export function createProfile(name: string, skill_level: SkillLevel): UserProfile {
+export async function createProfile(name: string, skill_level: SkillLevel): Promise<UserProfile> {
   const db = getDatabase();
   const trimmedName = name.trim() || 'Jogador';
+  let profile: UserProfile | null = null;
 
-  const existing = db.getFirstSync<UserProfile>(
-    'SELECT * FROM profile ORDER BY id ASC LIMIT 1'
-  );
-
-  if (existing) {
-    db.runSync(
-      'UPDATE profile SET name = ?, skill_level = ? WHERE id = ?',
-      [trimmedName, skill_level, existing.id]
+  await db.withTransactionAsync(async () => {
+    const existing = await db.getFirstAsync<UserProfile>(
+      'SELECT * FROM profile ORDER BY id ASC LIMIT 1'
     );
-    syncUserInRanking(db);
-    return { ...existing, name: trimmedName, skill_level };
+
+    if (existing) {
+      await db.runAsync(
+        'UPDATE profile SET name = ?, skill_level = ? WHERE id = ?',
+        [trimmedName, skill_level, existing.id]
+      );
+      profile = { ...existing, name: trimmedName, skill_level };
+    } else {
+      const now = new Date().toISOString();
+      const result = await db.runAsync(
+        `INSERT INTO profile (name, skill_level, rating, matches_count, wins_count, losses_count, draws_count, created_at)
+         VALUES (?, ?, 0, 0, 0, 0, 0, ?)`,
+        [trimmedName, skill_level, now]
+      );
+      profile = {
+        id: result.lastInsertRowId,
+        name: trimmedName,
+        skill_level,
+        rating: 0,
+        matches_count: 0,
+        wins_count: 0,
+        losses_count: 0,
+        draws_count: 0,
+        created_at: now,
+      };
+    }
+
+    await syncUserInRankingAsync(db);
+  });
+
+  if (!profile) {
+    throw new Error('O perfil não foi criado.');
   }
-
-  const initialPoints = 0;
-  const now = new Date().toISOString();
-
-  const result = db.runSync(
-    `INSERT INTO profile (name, skill_level, rating, matches_count, wins_count, losses_count, draws_count, created_at)
-     VALUES (?, ?, ?, 0, 0, 0, 0, ?)`,
-    [trimmedName, skill_level, initialPoints, now]
-  );
-
-  syncUserInRanking(db);
-
-  return {
-    id: result.lastInsertRowId,
-    name: trimmedName,
-    skill_level,
-    rating: initialPoints,
-    matches_count: 0,
-    wins_count: 0,
-    losses_count: 0,
-    draws_count: 0,
-    created_at: now,
-  };
+  return profile;
 }
 
 export function updateProfileName(name: string): boolean {
@@ -601,6 +649,20 @@ export function setSetting(key: string, value: string): boolean {
   try {
     const db = getDatabase();
     db.runSync(
+      'INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value',
+      [key, value]
+    );
+    return true;
+  } catch (err) {
+    console.error(`Erro ao salvar configuração ${key}:`, err);
+    return false;
+  }
+}
+
+async function setSettingAsync(key: string, value: string): Promise<boolean> {
+  try {
+    const db = getDatabase();
+    await db.runAsync(
       'INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value',
       [key, value]
     );
@@ -736,12 +798,12 @@ function isValidActiveMatchState(value: unknown): value is ActiveMatchState {
   return true;
 }
 
-export function saveActiveMatch(state: ActiveMatchState): void {
+export async function saveActiveMatch(state: ActiveMatchState): Promise<void> {
   if (!isValidActiveMatchState(state)) {
     console.error('Nao foi possivel salvar partida ativa: dados invalidos.');
     return;
   }
-  setSetting('active_match_state', JSON.stringify(state));
+  await setSettingAsync('active_match_state', JSON.stringify(state));
 }
 
 export function getActiveMatch(): ActiveMatchState | null {

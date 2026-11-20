@@ -140,6 +140,12 @@ npm run ios
 npm run web
 ```
 
+Na web, o SQLite requer suporte a `SharedArrayBuffer`. `npm run web` inicia o Expo atras
+de um proxy local que adiciona os cabecalhos de isolamento necessarios; o `metro.config.js`
+habilita arquivos WASM e o plugin `expo-router` aplica os cabecalhos no Expo Hosting. Em
+outras hospedagens, configure as respostas com `Cross-Origin-Embedder-Policy: credentialless`
+e `Cross-Origin-Opener-Policy: same-origin`, servindo o site por HTTPS.
+
 No terminal do Expo, use o codigo QR exibido para abrir o aplicativo em Expo Go ou
 selecione o emulador/simulador configurado no ambiente.
 

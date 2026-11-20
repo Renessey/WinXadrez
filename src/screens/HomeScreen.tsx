@@ -9,7 +9,6 @@ import {
   PanResponder,
   Modal,
   TextInput,
-  Alert,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -103,6 +102,12 @@ const difficultyOptions: { level: GameDifficulty; title: string; desc: string; i
   { level: 'Médio', title: 'Médio', desc: 'Bot tático e equilibrado', icon: 'hardware-chip-outline' },
   { level: 'Difícil', title: 'Difícil', desc: 'Bot calculista e exigente', icon: 'flame-outline' },
 ];
+
+const skillDifficulty: Record<SkillLevel, GameDifficulty> = {
+  'Não sei jogar': 'Fácil',
+  'Sei o básico': 'Médio',
+  'Sou bom': 'Difícil',
+};
 
 const pieceGuide: { icon: McName; name: string; text: string }[] = [
   { icon: 'chess-pawn', name: 'Peão', text: 'Anda 1 casa para frente (2 no primeiro lance) e captura na diagonal.' },
@@ -551,6 +556,8 @@ export default function HomeScreen() {
   const [showLevelModal, setShowLevelModal] = useState(false);
   const [showTutorial, setShowTutorial] = useState(false);
   const [playerName, setPlayerName] = useState('');
+  const [onboardingError, setOnboardingError] = useState<string | null>(null);
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
   const [selectedLevel, setSelectedLevel] = useState<SkillLevel>('Sei o básico');
   const [pendingMode, setPendingMode] = useState<'bot' | 'pvp'>('bot');
 
@@ -579,6 +586,7 @@ export default function HomeScreen() {
     const currentProfile = getProfile();
     if (!currentProfile) {
       setPlayerName('');
+      setOnboardingError(null);
       setSelectedLevel('Sei o básico');
       setPendingMode(targetMode);
       setShowOnboarding(true);
@@ -604,19 +612,36 @@ export default function HomeScreen() {
 
   const handleSelectLevel = (level: SkillLevel) => {
     setSelectedLevel(level);
+    setOnboardingError(null);
     if (level === 'Não sei jogar') setShowTutorial(true);
   };
 
-  const handleConfirmOnboarding = () => {
+  const handleConfirmOnboarding = async () => {
     const trimmed = playerName.trim();
     if (trimmed.length < 2) {
-      Alert.alert('Nome inválido', 'Digite um nome ou apelido com pelo menos 2 caracteres.');
+      setOnboardingError('Digite um nome ou apelido com pelo menos 2 caracteres.');
       return;
     }
-    const newProfile = createProfile(trimmed, selectedLevel);
-    setProfile(newProfile);
-    setShowOnboarding(false);
-    router.push({ pathname: '/game', params: { mode: pendingMode } });
+    if (isSavingProfile) return;
+
+    setIsSavingProfile(true);
+    try {
+      const newProfile = await createProfile(trimmed, selectedLevel);
+      setProfile(newProfile);
+      setShowOnboarding(false);
+      router.push({
+        pathname: '/game',
+        params:
+          pendingMode === 'bot'
+            ? { mode: 'bot', difficulty: skillDifficulty[selectedLevel] }
+            : { mode: 'pvp' },
+      });
+    } catch (error) {
+      console.error('Não foi possível criar o perfil:', error);
+      setOnboardingError('Não foi possível salvar seu perfil. Tente novamente.');
+    } finally {
+      setIsSavingProfile(false);
+    }
   };
 
   const go = (route: string) => router.push(route as any);
@@ -782,32 +807,51 @@ export default function HomeScreen() {
 
       {/* ===== Onboarding ===== */}
       <Sheet visible={showOnboarding} onClose={() => setShowOnboarding(false)}>
-        <Text style={styles.sheetTitle}>Crie seu perfil</Text>
-        <Text style={styles.sheetSub}>Com seu nome e nível, o bot começa na dificuldade certa para você.</Text>
+        <ScrollView
+          style={styles.onboardingScroll}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          <Text style={styles.sheetTitle}>Crie seu perfil</Text>
+          <Text style={styles.sheetSub}>Com seu nome e nível, o bot começa na dificuldade certa para você.</Text>
 
-        <Text style={styles.fieldLabel}>Nome ou apelido</Text>
-        <TextInput style={styles.textInput} placeholder="Ex.: Mestre Carlos" placeholderTextColor={MUTED} value={playerName} onChangeText={setPlayerName} maxLength={25} autoFocus />
+          <Text style={styles.fieldLabel}>Nome ou apelido</Text>
+          <TextInput
+            style={styles.textInput}
+            placeholder="Ex.: Mestre Carlos"
+            placeholderTextColor={MUTED}
+            value={playerName}
+            onChangeText={(name) => {
+              setPlayerName(name);
+              setOnboardingError(null);
+            }}
+            maxLength={25}
+            autoFocus
+            accessibilityLabel="Nome ou apelido"
+          />
+          {onboardingError && <Text style={styles.onboardingError}>{onboardingError}</Text>}
 
-        <Text style={[styles.fieldLabel, { marginTop: 16 }]}>Seu nível de xadrez</Text>
-        <View style={styles.optionList}>
-          {skillOptions.map((opt) => (
-            <OptionRow key={opt.level} icon={opt.icon} title={opt.title} desc={opt.desc} selected={selectedLevel === opt.level} trailing="radio" onPress={() => handleSelectLevel(opt.level)} />
-          ))}
-        </View>
+          <Text style={[styles.fieldLabel, { marginTop: 16 }]}>Seu nível de xadrez</Text>
+          <View style={styles.optionList}>
+            {skillOptions.map((opt) => (
+              <OptionRow key={opt.level} icon={opt.icon} title={opt.title} desc={opt.desc} selected={selectedLevel === opt.level} trailing="radio" onPress={() => handleSelectLevel(opt.level)} />
+            ))}
+          </View>
 
-        {selectedLevel === 'Não sei jogar' && (
-          <Pressable style={styles.linkButton} onPress={() => setShowTutorial(true)}>
-            <Ionicons name="help-circle-outline" size={18} color={GOLD} />
-            <Text style={styles.linkButtonText}>Ver como se joga xadrez</Text>
-          </Pressable>
-        )}
+          {selectedLevel === 'Não sei jogar' && (
+            <Pressable style={styles.linkButton} onPress={() => setShowTutorial(true)}>
+              <Ionicons name="help-circle-outline" size={18} color={GOLD} />
+              <Text style={styles.linkButtonText}>Ver como se joga xadrez</Text>
+            </Pressable>
+          )}
+        </ScrollView>
 
         <View style={styles.sheetActions}>
           <Pressable accessibilityRole="button" style={styles.cancelButton} onPress={() => setShowOnboarding(false)}>
             <Text style={styles.cancelText}>Cancelar</Text>
           </Pressable>
-          <Pressable accessibilityRole="button" style={[styles.confirmButton, { flex: 2 }]} onPress={handleConfirmOnboarding}>
-            <Text style={styles.confirmText}>Começar a jogar</Text>
+          <Pressable accessibilityRole="button" disabled={isSavingProfile} style={[styles.confirmButton, { flex: 2, opacity: isSavingProfile ? 0.7 : 1 }]} onPress={handleConfirmOnboarding}>
+            <Text style={styles.confirmText}>{isSavingProfile ? 'Salvando...' : 'Começar a jogar'}</Text>
           </Pressable>
         </View>
       </Sheet>
@@ -936,11 +980,13 @@ const styles = StyleSheet.create({
   overlay: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.7)' },
   sheetWrap: { width: '100%', maxWidth: 560, alignSelf: 'center' },
   sheet: { maxHeight: '92%', backgroundColor: SURFACE, borderTopLeftRadius: 28, borderTopRightRadius: 28, borderWidth: 1, borderBottomWidth: 0, borderColor: HAIR, paddingHorizontal: 20, paddingTop: 10 },
+  onboardingScroll: { flexShrink: 1 },
   handle: { alignSelf: 'center', width: 40, height: 4, borderRadius: 2, marginBottom: 18, backgroundColor: GOLD, opacity: 0.8 },
   sheetTitle: { color: IVORY, fontFamily: SERIF, fontSize: 26, fontWeight: '700', letterSpacing: -0.5, marginBottom: 6 },
   sheetSub: { color: MUTED, fontSize: 14, lineHeight: 20, marginBottom: 18 },
   fieldLabel: { color: IVORY, fontSize: 14, fontWeight: '600', marginBottom: 8 },
   textInput: { minHeight: 52, borderWidth: 1, borderColor: HAIR, borderRadius: 14, paddingHorizontal: 14, fontSize: 16, color: IVORY, backgroundColor: SURFACE_2 },
+  onboardingError: { color: '#ff8b8b', fontSize: 13, marginTop: 7 },
   optionList: { gap: 10 },
   optionRow: { minHeight: 66, flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12, borderRadius: 16, backgroundColor: SURFACE_2 },
   optionIcon: { width: 42, height: 42, borderRadius: 21, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(217,180,91,0.08)' },
